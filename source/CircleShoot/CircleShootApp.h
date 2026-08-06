@@ -2,6 +2,7 @@
 #define __CIRCLESHOOTAPP_H__
 
 #include <SexyAppFramework/SexyAppBase.h>
+#include "CircleCommon.h"
 
 namespace Sexy
 {
@@ -55,6 +56,17 @@ namespace Sexy
         int mMaxTime;
         bool mIsPractice;
         int mUnk36;
+        bool mColorsBanMode;
+        bool mBannedColors[MAX_BALL_COLORS];
+        bool mUnpoweredMode;
+        bool mDisabledPowerUps[PowerType_Max];
+        bool mNoSwapMode;
+        bool mSonicMode;
+        float mChainSpeedMultiplier;
+
+        bool IsColorBanned(int theColor) const;
+        bool IsPowerUpDisabled(int thePowerType) const;
+        float GetChainSpeedMultiplier() const;
 
         CircleShootApp();
         virtual ~CircleShootApp();
@@ -98,6 +110,11 @@ namespace Sexy
         void DoRegisterDialog();
         void DoNextTempleDialog();
         void DoOptionsDialog();
+        void DoModesDialog();
+        void DoColorsBanDialog();
+        void DoUnpoweredDialog();
+        void DoSonicDialog();
+        void DoModeHelpDialog(const std::string &theTitle, const std::string &theDescription);
         void DoConfirmContinueDialog(const std::string &theVerboseLevelString, const std::string &theDisplayName, int theScore);
         void DoGetReadyDialog();
         void DoConfirmMainMenuDialog();
@@ -115,6 +132,10 @@ namespace Sexy
         void FinishConfirmContinueDialog(bool startGame);
         void FinishGetReadyDialog();
         void FinishOptionsDialog(bool confirm);
+        void FinishModesDialog(bool apply);
+        void FinishColorsBanDialog(bool apply);
+        void FinishUnpoweredDialog(bool apply);
+        void FinishSonicDialog(bool apply);
         void FinishConfirmMainMenuDialog(bool mainMenu);
         void FinishStatsDialog(bool);
 

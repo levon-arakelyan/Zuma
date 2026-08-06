@@ -10,6 +10,7 @@
 
 #include "Bullet.h"
 #include "Gun.h"
+#include "CircleShootApp.h"
 #include "Res.h"
 #include "DataSync.h"
 
@@ -47,6 +48,7 @@ Gun::Gun()
 
 Gun::~Gun()
 {
+    EmptyBullets();
 }
 
 void Gun::SyncState(DataSync &theSync)
@@ -133,6 +135,13 @@ void Gun::Reload(int theType, bool delay, PowerType thePower)
     aBullet->SetType(theType);
     aBullet->SetPowerType(thePower, false);
 
+    // Fill only the next slot if the chamber already has a ball (e.g. after interrupting a shot).
+    if (mBullet != NULL && mNextBullet == NULL)
+    {
+        mNextBullet = aBullet;
+        return;
+    }
+
     mStatePercent = 0.0f;
     if (mBullet)
         delete mBullet;
@@ -193,7 +202,7 @@ void Gun::Draw(Graphics *g)
     if (mBullet != NULL)
         mBullet->Draw(g);
 
-    if (mShowNextBall)
+    if (mShowNextBall && !GetCircleShootApp()->mNoSwapMode)
     {
         if (mNextBullet != NULL && mState != GunState_Reloading)
         {
@@ -235,9 +244,30 @@ void Gun::DrawShadow(Graphics *g)
     // empty
 }
 
+void Gun::ForceFinishShot()
+{
+    if (mState != GunState_Firing || mBullet == NULL)
+        return;
+
+    mPendingFired.push_back(mBullet);
+    mBullet = mNextBullet;
+    mNextBullet = NULL;
+    mState = GunState_Normal;
+    mStatePercent = 1.0f;
+}
+
 bool Gun::StartFire(bool recoil)
 {
-    if (mState != GunState_Normal || mBullet == NULL)
+    if (mState == GunState_Reloading)
+    {
+        mState = GunState_Normal;
+        mStatePercent = 1.0f;
+    }
+
+    if (mState == GunState_Firing)
+        ForceFinishShot();
+
+    if (mBullet == NULL)
         return false;
 
     mStatePercent = 0.0f;
@@ -273,6 +303,13 @@ bool Gun::StartFire(bool recoil)
 
 Bullet *Gun::GetFiredBullet()
 {
+    if (!mPendingFired.empty())
+    {
+        Bullet *aBullet = mPendingFired.front();
+        mPendingFired.pop_front();
+        return aBullet;
+    }
+
     if (mState == GunState_Firing && mStatePercent >= 1)
     {
         Bullet *aBullet = mBullet;
@@ -357,6 +394,9 @@ void Gun::Update()
 
 void Gun::SwapBullets(bool playSound)
 {
+    if (GetCircleShootApp()->mNoSwapMode)
+        return;
+
     if (mState != GunState_Normal)
         return;
 
@@ -384,6 +424,12 @@ void Gun::SwapBullets(bool playSound)
 void Gun::EmptyBullets()
 {
     mState = GunState_Normal;
+
+    while (!mPendingFired.empty())
+    {
+        delete mPendingFired.front();
+        mPendingFired.pop_front();
+    }
 
     if (mNextBullet != NULL)
     {

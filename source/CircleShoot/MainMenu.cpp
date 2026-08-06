@@ -59,6 +59,7 @@ MainMenu::MainMenu()
     mOptionsButton = MakeButton(2, this, "", CircleButton::CB_ClickSound | CircleButton::CB_ChoralSound, Sexy::IMAGE_MM_OPTIONS, 3);
     mMoreGamesButton = MakeButton(3, this, "", CircleButton::CB_ClickSound | CircleButton::CB_ChoralSound, Sexy::IMAGE_MM_MOREGAMES, 3);
     mQuitButton = MakeButton(4, this, "", CircleButton::CB_ClickSound | CircleButton::CB_ChoralSound, Sexy::IMAGE_MM_QUIT, 3);
+    mModesButton = MakeButton(6, this, "Modes", CircleButton::CB_ClickSound, NULL, 3);
 
     mEyesImage = Sexy::CutoutImageFromAlpha((MemoryImage *)Sexy::IMAGE_MM_BACK, (MemoryImage *)Sexy::IMAGE_MM_EYEMASK, mEyeCutoutPos.mX, mEyeCutoutPos.mY);
     mNotYouLink = new HyperlinkWidget(5, this);
@@ -88,6 +89,7 @@ MainMenu::~MainMenu()
     delete mOptionsButton;
     delete mMoreGamesButton;
     delete mQuitButton;
+    delete mModesButton;
     delete mNotYouLink;
     delete mEyesImage;
     delete mUFOImage;
@@ -126,6 +128,7 @@ void MainMenu::OrderInManagerChanged()
     mWidgetManager->PutInfront(mMainMenuOverlay, this);
     mWidgetManager->PutInfront(mNotYouLink, this);
     mWidgetManager->PutInfront(mQuitButton, this);
+    mWidgetManager->PutInfront(mModesButton, this);
     mWidgetManager->PutInfront(mOptionsButton, this);
     mWidgetManager->PutInfront(mMoreGamesButton, this);
     mWidgetManager->PutInfront(mGauntletButton, this);
@@ -141,6 +144,7 @@ void MainMenu::RemovedFromManager(WidgetManager *theWidgetManager)
     theWidgetManager->RemoveWidget(mMoreGamesButton);
     theWidgetManager->RemoveWidget(mOptionsButton);
     theWidgetManager->RemoveWidget(mQuitButton);
+    theWidgetManager->RemoveWidget(mModesButton);
     theWidgetManager->RemoveWidget(mNotYouLink);
     theWidgetManager->RemoveWidget(mMainMenuOverlay);
 }
@@ -169,6 +173,9 @@ void MainMenu::ButtonDepress(int theId)
     case 5:
         app->DoUserDialog();
         break;
+    case 6:
+        app->DoModesDialog();
+        break;
     default:
         break;
     }
@@ -183,12 +190,14 @@ void MainMenu::AddedToManager(WidgetManager *theWidgetManager)
     mOptionsButton->Layout(48, this, 418, 236, 0, 0);
     mMoreGamesButton->Layout(48, this, 394, 305, 0, 0);
     mQuitButton->Layout(48, this, 496, 315, 0, 0);
+    mModesButton->Resize(CIRCLE_WINDOW_WIDTH - 110, 8, 100, mModesButton->mHeight);
 
     theWidgetManager->AddWidget(mArcadeButton);
     theWidgetManager->AddWidget(mGauntletButton);
     theWidgetManager->AddWidget(mMoreGamesButton);
     theWidgetManager->AddWidget(mOptionsButton);
     theWidgetManager->AddWidget(mQuitButton);
+    theWidgetManager->AddWidget(mModesButton);
     theWidgetManager->AddWidget(mNotYouLink);
     theWidgetManager->AddWidget(mMainMenuOverlay);
 }

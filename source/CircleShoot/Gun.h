@@ -2,6 +2,7 @@
 #define __GUN_H__
 
 #include "CircleCommon.h"
+#include <list>
 
 namespace Sexy
 {
@@ -34,6 +35,7 @@ protected:
 	int mWidth, mHeight;
 	Bullet *mBullet;
 	Bullet *mNextBullet;
+	std::list<Bullet *> mPendingFired;
 
 	GunState mState;
 	float mStatePercent;
@@ -47,6 +49,7 @@ protected:
 	float mCachedGunAngle;
 
 	void CalcAngle();
+	void ForceFinishShot();
 
 public:
 	Gun();

@@ -19,6 +19,10 @@
 #include "MainMenu.h"
 #include "CreateUserDialog.h"
 #include "OptionsDialog.h"
+#include "ModesDialog.h"
+#include "ColorsBanDialog.h"
+#include "UnpoweredDialog.h"
+#include "SonicDialog.h"
 #include "StatsDialog.h"
 #include "UserDialog.h"
 #include "AdventureScreen.h"
@@ -72,6 +76,15 @@ CircleShootApp::CircleShootApp()
     mMaxExecutions = 0;
     mMaxPlays = 0;
     mMaxTime = 0;
+    mColorsBanMode = false;
+    for (int i = 0; i < MAX_BALL_COLORS; i++)
+        mBannedColors[i] = false;
+    mUnpoweredMode = false;
+    for (int i = 0; i < PowerType_Max; i++)
+        mDisabledPowerUps[i] = false;
+    mNoSwapMode = false;
+    mSonicMode = false;
+    mChainSpeedMultiplier = 1.0f;
 }
 
 CircleShootApp::~CircleShootApp()
@@ -250,7 +263,10 @@ bool CircleShootApp::KillDialog(int theDialogId)
 
     if (mDialogMap.empty())
     {
-        mWidgetManager->SetFocus(mBoard);
+        if (mBoard != NULL)
+            mWidgetManager->SetFocus(mBoard);
+        else if (mMainMenu != NULL)
+            mWidgetManager->SetFocus(mMainMenu);
     }
 
     return true;
@@ -915,6 +931,73 @@ void CircleShootApp::DoOptionsDialog()
     AddDialog(DialogType_Options, dialog);
 }
 
+void CircleShootApp::DoModesDialog()
+{
+    Dialog *dialog = new ModesDialog();
+    SetupDialog(dialog, 400);
+    AddDialog(DialogType_Modes, dialog);
+}
+
+void CircleShootApp::DoColorsBanDialog()
+{
+    if (GetDialog(DialogType_ColorsBan) != NULL)
+        return;
+
+    ModesDialog *modes = (ModesDialog *)GetDialog(DialogType_Modes);
+    bool initialBanned[MAX_BALL_COLORS];
+    if (modes != NULL)
+        modes->GetBannedColors(initialBanned);
+    else
+    {
+        for (int i = 0; i < MAX_BALL_COLORS; i++)
+            initialBanned[i] = mBannedColors[i];
+    }
+
+    Dialog *dialog = new ColorsBanDialog(initialBanned);
+    SetupDialog(dialog, 400);
+    AddDialog(DialogType_ColorsBan, dialog);
+}
+
+void CircleShootApp::DoUnpoweredDialog()
+{
+    if (GetDialog(DialogType_Unpowered) != NULL)
+        return;
+
+    ModesDialog *modes = (ModesDialog *)GetDialog(DialogType_Modes);
+    bool initialDisabled[PowerType_Max];
+    if (modes != NULL)
+        modes->GetDisabledPowerUps(initialDisabled);
+    else
+    {
+        for (int i = 0; i < PowerType_Max; i++)
+            initialDisabled[i] = mDisabledPowerUps[i];
+    }
+
+    Dialog *dialog = new UnpoweredDialog(initialDisabled);
+    SetupDialog(dialog, 400);
+    AddDialog(DialogType_Unpowered, dialog);
+}
+
+void CircleShootApp::DoSonicDialog()
+{
+    if (GetDialog(DialogType_Sonic) != NULL)
+        return;
+
+    ModesDialog *modes = (ModesDialog *)GetDialog(DialogType_Modes);
+    float initialMult = (modes != NULL) ? modes->GetChainSpeedMultiplier() : mChainSpeedMultiplier;
+
+    Dialog *dialog = new SonicDialog(initialMult);
+    SetupDialog(dialog, 400);
+    AddDialog(DialogType_Sonic, dialog);
+}
+
+void CircleShootApp::DoModeHelpDialog(const std::string &theTitle, const std::string &theDescription)
+{
+    KillDialog(DialogType_ModeHelp);
+    Dialog *dialog = DoDialog(DialogType_ModeHelp, true, theTitle, theDescription, "OK", Dialog::BUTTONS_FOOTER);
+    SetupDialog(dialog, 380);
+}
+
 void CircleShootApp::DoConfirmContinueDialog(const std::string &theVerboseLevelString, const std::string &theDisplayName, int theScore)
 {
     std::string aScore = Sexy::StrFormat("%s (%s)\r\nScore: %d\r\n", theVerboseLevelString.c_str(), theDisplayName.c_str(), theScore);
@@ -1023,6 +1106,155 @@ void CircleShootApp::FinishOptionsDialog(bool saveSettings)
     }
 }
 
+void CircleShootApp::FinishModesDialog(bool apply)
+{
+    ModesDialog *dialog = (ModesDialog *)GetDialog(DialogType_Modes);
+    if (dialog == NULL)
+        return;
+
+    // Copy session state before any dialog teardown.
+    bool colorsBan = false;
+    bool unpowered = false;
+    bool noSwap = false;
+    bool sonic = false;
+    bool bannedColors[MAX_BALL_COLORS];
+    bool disabledPowerUps[PowerType_Max];
+    float chainSpeed = 1.0f;
+
+    if (apply)
+    {
+        colorsBan = dialog->IsColorsBanSelected();
+        dialog->GetBannedColors(bannedColors);
+        unpowered = dialog->IsUnpoweredSelected();
+        dialog->GetDisabledPowerUps(disabledPowerUps);
+        noSwap = dialog->IsNoSwapSelected();
+        sonic = dialog->IsSonicSelected();
+        chainSpeed = dialog->GetChainSpeedMultiplier();
+    }
+
+    dialog->PrepareClose();
+
+    KillDialog(DialogType_ColorsBan);
+    KillDialog(DialogType_Unpowered);
+    KillDialog(DialogType_Sonic);
+    KillDialog(DialogType_ModeHelp);
+    KillDialog(DialogType_Modes);
+
+    if (apply)
+    {
+        mColorsBanMode = colorsBan;
+        for (int i = 0; i < MAX_BALL_COLORS; i++)
+            mBannedColors[i] = bannedColors[i];
+
+        mUnpoweredMode = unpowered;
+        for (int i = 0; i < PowerType_Max; i++)
+            mDisabledPowerUps[i] = disabledPowerUps[i];
+
+        mNoSwapMode = noSwap;
+        mSonicMode = sonic;
+        mChainSpeedMultiplier = chainSpeed;
+    }
+}
+
+void CircleShootApp::FinishColorsBanDialog(bool apply)
+{
+    ColorsBanDialog *colorsDialog = (ColorsBanDialog *)GetDialog(DialogType_ColorsBan);
+    ModesDialog *modesDialog = (ModesDialog *)GetDialog(DialogType_Modes);
+    if (colorsDialog == NULL)
+        return;
+
+    if (apply)
+    {
+        bool banned[MAX_BALL_COLORS];
+        colorsDialog->GetBannedColors(banned);
+
+        if (modesDialog != NULL)
+        {
+            modesDialog->SetBannedColors(banned);
+            modesDialog->SetColorsBanSelected(true);
+        }
+    }
+    else if (modesDialog != NULL)
+    {
+        modesDialog->SetColorsBanSelected(false);
+    }
+
+    KillDialog(DialogType_ColorsBan);
+}
+
+void CircleShootApp::FinishUnpoweredDialog(bool apply)
+{
+    UnpoweredDialog *powerDialog = (UnpoweredDialog *)GetDialog(DialogType_Unpowered);
+    ModesDialog *modesDialog = (ModesDialog *)GetDialog(DialogType_Modes);
+    if (powerDialog == NULL)
+        return;
+
+    if (apply)
+    {
+        bool disabled[PowerType_Max];
+        powerDialog->GetDisabledPowerUps(disabled);
+
+        if (modesDialog != NULL)
+        {
+            modesDialog->SetDisabledPowerUps(disabled);
+            modesDialog->SetUnpoweredSelected(true);
+        }
+    }
+    else if (modesDialog != NULL)
+    {
+        modesDialog->SetUnpoweredSelected(false);
+    }
+
+    KillDialog(DialogType_Unpowered);
+}
+
+void CircleShootApp::FinishSonicDialog(bool apply)
+{
+    SonicDialog *sonicDialog = (SonicDialog *)GetDialog(DialogType_Sonic);
+    ModesDialog *modesDialog = (ModesDialog *)GetDialog(DialogType_Modes);
+    if (sonicDialog == NULL)
+        return;
+
+    if (apply)
+    {
+        if (modesDialog != NULL)
+        {
+            modesDialog->SetChainSpeedMultiplier(sonicDialog->GetChainSpeedMultiplier());
+            modesDialog->SetSonicSelected(true);
+        }
+    }
+    else if (modesDialog != NULL)
+    {
+        modesDialog->SetSonicSelected(false);
+    }
+
+    KillDialog(DialogType_Sonic);
+}
+
+bool CircleShootApp::IsColorBanned(int theColor) const
+{
+    if (!mColorsBanMode || theColor < 0 || theColor >= MAX_BALL_COLORS)
+        return false;
+
+    return mBannedColors[theColor];
+}
+
+bool CircleShootApp::IsPowerUpDisabled(int thePowerType) const
+{
+    if (!mUnpoweredMode || thePowerType < 0 || thePowerType >= PowerType_Max)
+        return false;
+
+    return mDisabledPowerUps[thePowerType];
+}
+
+float CircleShootApp::GetChainSpeedMultiplier() const
+{
+    if (!mSonicMode)
+        return 1.0f;
+
+    return mChainSpeedMultiplier;
+}
+
 void CircleShootApp::FinishConfirmMainMenuDialog(bool mainMenu)
 {
     KillDialog(DialogType_ConfirmMainMenu);
@@ -1085,6 +1317,18 @@ bool CircleShootApp::CheckYesNoButton(int theButton)
         case 2022:
             // FinishNeedRegisterDialog(true);
             return true;
+        case 2023:
+            FinishModesDialog(true);
+            return true;
+        case 2024:
+            FinishColorsBanDialog(true);
+            return true;
+        case 2025:
+            FinishUnpoweredDialog(true);
+            return true;
+        case 2026:
+            FinishSonicDialog(true);
+            return true;
         default:
             KillDialog(theButton - 2000);
             return true;
@@ -1131,6 +1375,18 @@ bool CircleShootApp::CheckYesNoButton(int theButton)
             return true;
         case 3022:
             // FinishNeedRegisterDialog(false);
+            return true;
+        case 3023:
+            FinishModesDialog(false);
+            return true;
+        case 3024:
+            FinishColorsBanDialog(false);
+            return true;
+        case 3025:
+            FinishUnpoweredDialog(false);
+            return true;
+        case 3026:
+            FinishSonicDialog(false);
             return true;
         default:
             KillDialog(theButton - 3000);

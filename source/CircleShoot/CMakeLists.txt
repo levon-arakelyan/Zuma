@@ -23,6 +23,10 @@ add_executable(Zuma WIN32
     LoadingScreen.cpp
     Main.cpp
     MainMenu.cpp
+    ModesDialog.cpp
+    ColorsBanDialog.cpp
+    UnpoweredDialog.cpp
+    SonicDialog.cpp
     MoreGamesScreen.cpp
     OptionsDialog.cpp
     ParticleMgr.cpp

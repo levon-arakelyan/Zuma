@@ -590,8 +590,8 @@ void Board::UpdateBullets()
 
 void Board::UpdatePlaying()
 {
-    Bullet *aBullet = mGun->GetFiredBullet();
-    if (aBullet)
+    Bullet *aBullet;
+    while ((aBullet = mGun->GetFiredBullet()) != NULL)
     {
         mBulletList.push_back(aBullet);
         CheckReload();
@@ -749,7 +749,7 @@ void Board::CheckReload()
         for (int i = 0; i < rand; i++)
             it++;
 
-        mGun->Reload(it->first, true, Sexy::PowerType_Max);
+        mGun->Reload(it->first, false, Sexy::PowerType_Max);
     }
 }
 

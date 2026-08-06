@@ -854,6 +854,9 @@ bool CurveMgr::HasReachedCruisingSpeed()
 
 void CurveMgr::AddPowerUp(PowerType thePower)
 {
+    if (mApp->IsPowerUpDisabled((int)thePower))
+        return;
+
     int aBallIdx = Sexy::AppRand() % mBallList.size();
     BallList::iterator aBallItr = mBallList.begin();
     for (int i = 0; i < aBallIdx; ++i)
@@ -1432,6 +1435,8 @@ void CurveMgr::AdvanceBalls()
         }
     }
 
+    aMaxSpeed *= mApp->GetChainSpeedMultiplier();
+
     if (mAdvanceSpeed > aMaxSpeed)
     {
         mAdvanceSpeed -= 0.1f;
@@ -1527,8 +1532,14 @@ void CurveMgr::AdvanceBackwardBalls()
 
     if (mBackwardCount != 0)
     {
-        mBallList.back()->SetBackwardsSpeed(1.0f);
-        mBallList.back()->SetBackwardsCount(1);
+        Ball *aBack = mBallList.back();
+        // Post-clear knockback uses a longer pulse (count ~30) on this shared state.
+        // Do not overwrite an active knockback with the 1-tick reverse drive.
+        if (aBack->GetBackwardsCount() <= 1)
+        {
+            aBack->SetBackwardsSpeed(1.0f);
+            aBack->SetBackwardsCount(1);
+        }
     }
 
     for (;;)
@@ -1649,17 +1660,19 @@ void CurveMgr::UpdateSuckingBalls()
                 aBall->SetComboCount(0, 0);
             }
 
-            if (aNextBall->GetBackwardsCount() == 0)
+            // Knockback after a clear/suck collision. Shared with reverse-power state —
+            // always apply/refresh so reverse cannot swallow the knockback pulse.
             {
-                aNextBall->SetBackwardsCount(30);
-                float aBackwardsSpeed = aBall->GetComboCount() * 1.5f;
+                float aKnockSpeed = aBall->GetComboCount() * 1.5f;
+                if (aKnockSpeed < 0.5f)
+                    aKnockSpeed = 0.5f;
 
-                if (aBackwardsSpeed <= 0.5f)
+                if (aNextBall->GetBackwardsCount() < 30 ||
+                    aNextBall->GetBackwardsSpeed() < aKnockSpeed)
                 {
-                    aBackwardsSpeed = 0.5f;
+                    aNextBall->SetBackwardsCount(30);
+                    aNextBall->SetBackwardsSpeed(aKnockSpeed);
                 }
-
-                aNextBall->SetBackwardsSpeed(aBackwardsSpeed);
             }
 
             ClearPendingSucks(aNextBall);
@@ -1721,6 +1734,9 @@ void CurveMgr::UpdatePowerUps()
 
     for (int i = 0; i < (int)PowerType_Max; i++)
     {
+        if (mApp->IsPowerUpDisabled(i))
+            continue;
+
         int aFreq = mCurveDesc->mPowerUpFreq[i];
 
         if (aFreq > 0 && (Sexy::AppRand() % aFreq) == 0 && aFreq < mBoard->GetStateCount() - mLastPowerUpFrame[i])
@@ -1857,7 +1873,15 @@ void CurveMgr::AdvanceMergingBullet(BulletList::iterator &theBulletItr)
         }
 
         mBoard->mNumClearsInARow++;
-        if (!CheckSet(aNewBall))
+        bool didClear = CheckSet(aNewBall);
+
+        if (didClear && mApp->IsColorBanned(aNewBall->GetType()))
+        {
+            mBoard->SetLosing();
+            return;
+        }
+
+        if (!didClear)
         {
             mBoard->mNumClearsInARow--;
 
@@ -2018,7 +2042,7 @@ void CurveMgr::ClearPendingSucks(Ball *theEndBall)
 
 void CurveMgr::RollBallsIn()
 {
-    float aSpeed = mCurveDesc->mSpeed;
+    float aSpeed = mCurveDesc->mSpeed * mApp->GetChainSpeedMultiplier();
     int aStartDistance = 50;
     if (!mBoard->mIsEndless)
     {
@@ -2034,6 +2058,6 @@ void CurveMgr::RollBallsIn()
     }
     else
     {
-        mAdvanceSpeed = mCurveDesc->mSpeed;
+        mAdvanceSpeed = aSpeed;
     }
 }

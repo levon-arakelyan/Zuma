@@ -73,6 +73,11 @@ namespace Sexy
         DialogType_ConfirmMainMenu = 20,
         DialogType_ConfirmQuit = 21,
         DialogType_NeedRegister = 22,
+        DialogType_Modes = 23,
+        DialogType_ColorsBan = 24,
+        DialogType_Unpowered = 25,
+        DialogType_Sonic = 26,
+        DialogType_ModeHelp = 27,
         DialogType_Max,
     };
 
