@@ -406,7 +406,7 @@ int DDInterface::Init(HWND theWindow, bool IsWindowed)
 	{
 		OutputDebug(_S("Desktop is           %4lu x %4lu [%2d:%2d]\n"), mDesktopWidth, mDesktopHeight, mDesktopAspect.mNumerator, mDesktopAspect.mDenominator);
 
-		if ( mIs3D && mAspect < mDesktopAspect )
+		if (mAspect < mDesktopAspect)
 		{
 			mIsWidescreen = true;
 
@@ -414,6 +414,7 @@ int DDInterface::Init(HWND theWindow, bool IsWindowed)
 			mDisplayWidth = mDesktopWidth;
 			mDisplayHeight = mDesktopHeight;
 			mDisplayAspect = mDesktopAspect;
+			mFullscreenBits = 32;
 
 			if ( mApp->mWidescreenAware )
 			{

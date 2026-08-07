@@ -404,3 +404,6 @@ MigrationBackup/
 FodyWeavers.xsd
 
 # End of https://www.toptal.com/developers/gitignore/api/cmake,idapro,visualstudio
+
+TestGame/*
+TestGame_WorkingBackup/*

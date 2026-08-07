@@ -31,7 +31,10 @@ if (-not (Test-Path $toolsDir)) {
 # Determine platform and wrapper
 # We rely solely on $IsWindows (available in PowerShell Core/6+).
 # If running on Windows PowerShell 5.1, this might be $null/false, so ensure you are using a modern PowerShell or adjust if needed.
-$runningOnWindows = $IsWindows
+$runningOnWindows =
+    [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
+        [System.Runtime.InteropServices.OSPlatform]::Windows
+    )
 $wineKeeper = $null
 
 if (-not $runningOnWindows) {
@@ -144,7 +147,7 @@ Install-Tool -Name "Ninja" -Url $ninjaDownloadURL -Hash $ninjaHash `
 # Setup Visual Studio .NET environment (equivalent to vsvars32.bat)
 $msvcRoot = Join-Path $toolsDir "MSVC70"
 $vcInstallDir = $msvcRoot
-$vsInstallDir = Join-Path $msvcRoot "Common7" "IDE"
+$vsInstallDir = Join-Path (Join-Path $msvcRoot "Common7") "IDE"
 $devEnvDir = $vsInstallDir
 $msvcDir = Join-Path $vcInstallDir "Vc7"
 $frameworkSDKDir = Join-Path $msvcRoot "FrameworkSDK"
@@ -152,21 +155,21 @@ $frameworkSDKDir = Join-Path $msvcRoot "FrameworkSDK"
 # Prepare paths for MSVC environment
 $msvcBinPath = Join-Path $msvcDir "bin"
 $msvcIncludePaths = @(
-    (Join-Path $msvcDir "atlmfc" "include"),
+    (Join-Path (Join-Path $msvcDir "atlmfc") "include"),
     (Join-Path $msvcDir "include"),
-    (Join-Path $msvcDir "PlatformSDK" "Include" "prerelease"),
-    (Join-Path $msvcDir "PlatformSDK" "Include")
+    (Join-Path (Join-Path (Join-Path $msvcDir "PlatformSDK") "Include") "prerelease"),
+    (Join-Path (Join-Path $msvcDir "PlatformSDK") "Include")
 )
 $msvcLibPaths = @(
-    (Join-Path $msvcDir "atlmfc" "lib"),
+    (Join-Path (Join-Path $msvcDir "atlmfc") "lib"),
     (Join-Path $msvcDir "lib"),
-    (Join-Path $msvcDir "PlatformSDK" "lib" "prerelease"),
-    (Join-Path $msvcDir "PlatformSDK" "lib"),
+    (Join-Path (Join-Path (Join-Path $msvcDir "PlatformSDK") "lib") "prerelease"),
+    (Join-Path (Join-Path $msvcDir "PlatformSDK") "lib"),
     (Join-Path $frameworkSDKDir "lib")
 )
 
-$cmakeBinPath = Join-Path $toolsDir "cmake" "bin"
-$commonToolsPath = Join-Path $vcInstallDir "Common7" "Tools"
+$cmakeBinPath = Join-Path (Join-Path $toolsDir "cmake") "bin"
+$commonToolsPath = Join-Path (Join-Path $vcInstallDir "Common7") "Tools"
 
 Write-Host "Setting up build environment..."
 if ($runningOnWindows) {
@@ -239,7 +242,7 @@ if ($runningOnWindows) {
 
 # Run CMake
 $cmakeExe = Join-Path $cmakeBinPath "cmake.exe"
-$cmakeArgs = @("-S", ".", "-B", "build", "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release")
+$cmakeArgs = @("-S", ".", "-B", "build", "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release", "-DUSE_BASS2=ON")
 
 Write-Host "Configuring project..."
 if (-not $runningOnWindows) {

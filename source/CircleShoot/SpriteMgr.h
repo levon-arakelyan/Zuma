@@ -112,6 +112,7 @@ public:
 	void UpdateHole(int theCurveNum, float thePercentOpen);
 	void UpdateHoleBrightness(int theCurveNum, int theBrightness);
 	void PlaceHole(int theCurveNum, int theX, int theY, float theRotation);
+	void MoveHole(int theCurveNum, int theX, int theY, float theRotation);
 	void ClearHoleFlashes();
 	void AddHoleFlash(int theCurveNum, int theStagger);
 	void Update();

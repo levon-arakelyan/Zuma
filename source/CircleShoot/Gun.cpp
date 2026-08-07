@@ -258,14 +258,24 @@ void Gun::ForceFinishShot()
 
 bool Gun::StartFire(bool recoil)
 {
-    if (mState == GunState_Reloading)
-    {
-        mState = GunState_Normal;
-        mStatePercent = 1.0f;
-    }
+    CircleShootApp *app = GetCircleShootApp();
+    bool machineGun = app != NULL && app->mMachineGunMode;
 
-    if (mState == GunState_Firing)
-        ForceFinishShot();
+    if (machineGun)
+    {
+        if (mState == GunState_Reloading)
+        {
+            mState = GunState_Normal;
+            mStatePercent = 1.0f;
+        }
+
+        if (mState == GunState_Firing)
+            ForceFinishShot();
+    }
+    else if (mState != GunState_Normal || mBullet == NULL)
+    {
+        return false;
+    }
 
     if (mBullet == NULL)
         return false;

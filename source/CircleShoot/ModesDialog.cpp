@@ -4,8 +4,11 @@
 #include <SexyAppFramework/Checkbox.h>
 #include <SexyAppFramework/Font.h>
 #include <SexyAppFramework/Graphics.h>
+#include <SexyAppFramework/Image.h>
 #include <SexyAppFramework/DialogButton.h>
 #include <SexyAppFramework/ButtonWidget.h>
+#include <SexyAppFramework/ListWidget.h>
+#include <SexyAppFramework/ScrollbarWidget.h>
 #include <SexyAppFramework/SexyAppBase.h>
 
 #include "CircleShootApp.h"
@@ -16,22 +19,34 @@
 
 using namespace Sexy;
 
-namespace ModesDialogGraphics
+///////////////////////////////////////////////////////////////////////////////
+// ModesCatalog — edit layout / groups / modes here only
+///////////////////////////////////////////////////////////////////////////////
+namespace Sexy
 {
-    // Dialog chrome
+namespace ModesCatalog
+{
+    // --- Layout knobs ---
+    const float kLeftPaneWidthFraction = 0.25f;
+    const int kModesPerRow = 2;
+    const int kModeRowGap = 28;
+    const int kModeColGap = 12;
+    const int kPanePad = 4;
+    const int kScrollbarWidth = 16;
+    const int kContentBottomPad = 8;
+    const int kDividerHalfGap = 4;
+    const int kLabelHitPadX = 4;
+    const int kLabelHitHeight = 32;
+    const int kGroupItemHeight = 18;
+
+    // --- Dialog chrome ---
     const char *const kTitle = "MODES";
     const char *const kEmptyLines = "";
     const char *const kEmptyFooter = "";
     const char *const kApplyLabel = "Apply";
     const char *const kCancelLabel = "Cancel";
 
-    // Mode option labels
-    const char *const kColorsBanLabel = "Colors ban";
-    const char *const kUnpoweredLabel = "Unpowered";
-    const char *const kNoSwapLabel = "No swap";
-    const char *const kSonicLabel = "Sonic";
-
-    // Descriptions shown in the cursor tooltip while hovering a mode name
+    // --- Descriptions ---
     const char *const kColorsBanDescription =
         "Choose which colors you cannot destroy directly. Matching three or more of a banned color causes you to lose.";
     const char *const kUnpoweredDescription =
@@ -40,27 +55,71 @@ namespace ModesDialogGraphics
         "The frog cannot swap colors with right-click, and the next ball color is hidden.";
     const char *const kSonicDescription =
         "Increase the ball chain speed. When enabled, choose a multiplier from 1x to 10x (in 0.5 steps).";
+    const char *const kMachineGunDescription =
+        "No fire-rate limit. Every left click throws a ball immediately, even while the frog is still animating.";
+    const char *const kBomberDescription =
+        "Hitting a chain of 2 or more balls of the matching color triggers a bomb explosion at the impact.";
+    const char *const kUglyChainDescription =
+        "The rolling chain never places the same color next to itself. Every neighbor pair is a different color.";
+    const char *const kMovingHoleDescription =
+        "The end hole crawls backward along the path at a speed you choose, so the chain has less and less distance before it falls in.";
 
-    // Checkbox ids
-    const int kColorsBanCheckboxId = 0;
-    const int kUnpoweredCheckboxId = 1;
-    const int kNoSwapCheckboxId = 2;
-    const int kSonicCheckboxId = 3;
+    // --- Widget ids ---
+    const int kGroupListId = 0;
+    const int kModesScrollbarId = 1;
+    const int kHitIdBase = 100;
 
-    // Invisible hover hit-area ids (over mode labels)
-    const int kColorsBanHitId = 10;
-    const int kUnpoweredHitId = 11;
-    const int kNoSwapHitId = 12;
-    const int kSonicHitId = 13;
+    // --- Groups (order = left-list order) ---
+    struct GroupDef
+    {
+        GroupId id;
+        const char *name;
+    };
 
-    // Layout: 2x2 grid  Colors ban | Unpowered / No swap | Sonic
-    const int kFirstRowTopOffset = 14;
-    const int kRowVerticalGap = 28;
-    const int kColumnWidth = 180;
-    const int kLabelHitPadX = 4;
-    const int kLabelHitHeight = 32;
+    static const GroupDef kGroups[] = {
+        {Group_Limitations, "Masochist"},
+        {Group_Imbalance, "Imbalance"},
+    };
+    static const int kGroupCount = sizeof(kGroups) / sizeof(kGroups[0]);
 
-    // Tooltip
+    // --- Modes (change groupId to move between groups) ---
+    struct ModeDef
+    {
+        ModeId id;
+        GroupId groupId;
+        const char *label;
+        const char *description;
+        bool opensPicker;
+    };
+
+    static const ModeDef kModes[] = {
+        {Mode_ColorsBan, Group_Limitations, "Colors ban", kColorsBanDescription, true},
+        {Mode_Unpowered, Group_Limitations, "Unpowered", kUnpoweredDescription, true},
+        {Mode_NoSwap, Group_Limitations, "No swap", kNoSwapDescription, false},
+        {Mode_Sonic, Group_Limitations, "Sonic", kSonicDescription, true},
+        {Mode_UglyChain, Group_Limitations, "Ugly chain", kUglyChainDescription, false},
+        {Mode_MovingHole, Group_Limitations, "Moving hole", kMovingHoleDescription, true},
+        {Mode_MachineGun, Group_Imbalance, "Machine gun", kMachineGunDescription, false},
+        {Mode_Bomber, Group_Imbalance, "Bomber", kBomberDescription, false},
+    };
+    static const int kModeCount = sizeof(kModes) / sizeof(kModes[0]);
+
+    static const ModeDef *FindModeDef(ModeId theId)
+    {
+        for (int i = 0; i < kModeCount; i++)
+        {
+            if (kModes[i].id == theId)
+                return &kModes[i];
+        }
+        return NULL;
+    }
+
+    static int HitIdForMode(ModeId theId)
+    {
+        return kHitIdBase + (int)theId;
+    }
+
+    // --- Tooltip ---
     const int kTooltipWidth = 230;
     const int kTooltipPadX = 8;
     const int kTooltipPadY = 6;
@@ -68,9 +127,14 @@ namespace ModesDialogGraphics
     const int kTooltipCursorOffsetY = 18;
     const int kTooltipLineSpacing = -1;
 
-    // Dialog sizing
-    const int kExtraPreferredHeight = 160;
+    static int aGroupListColors[5][3] = {
+        {41, 73, 24},
+        {0, 0, 0},
+        {206, 227, 33},
+        {255, 255, 255},
+        {173, 40, 198}};
 }
+} // namespace Sexy / ModesCatalog
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -94,13 +158,57 @@ void ModeHelpTooltip::Draw(Graphics *g)
     g->SetFont(FONT_DIALOG);
     g->SetColor(Color(0xD5E520));
     WriteWordWrapped(g,
-                     Rect(ModesDialogGraphics::kTooltipPadX,
-                          ModesDialogGraphics::kTooltipPadY,
-                          mWidth - 2 * ModesDialogGraphics::kTooltipPadX,
-                          mHeight - 2 * ModesDialogGraphics::kTooltipPadY),
+                     Rect(ModesCatalog::kTooltipPadX,
+                          ModesCatalog::kTooltipPadY,
+                          mWidth - 2 * ModesCatalog::kTooltipPadX,
+                          mHeight - 2 * ModesCatalog::kTooltipPadY),
                      mText,
-                     ModesDialogGraphics::kTooltipLineSpacing,
+                     ModesCatalog::kTooltipLineSpacing,
                      -1);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+ModesPane::ModesPane(ModesDialog *theDialog)
+{
+    mDialog = theDialog;
+    mScrollY = 0;
+    mContentHeight = 0;
+    mClip = true;
+    mHasTransparencies = true;
+    mHasAlpha = true;
+}
+
+void ModesPane::Draw(Graphics *g)
+{
+    if (mDialog != NULL)
+        mDialog->DrawModeLabels(g);
+}
+
+void ModesPane::ScrollPosition(int theId, double thePosition)
+{
+    (void)theId;
+    int newScroll = (int)thePosition;
+    if (newScroll == mScrollY)
+        return;
+
+    mScrollY = newScroll;
+    if (mDialog != NULL)
+        mDialog->LayoutModeWidgets();
+    MarkDirty();
+}
+
+void ModesPane::MouseWheel(int theDelta)
+{
+    if (mDialog == NULL || mDialog->mModesScrollbar == NULL)
+        return;
+
+    ScrollbarWidget *sb = mDialog->mModesScrollbar;
+    if (!sb->mVisible)
+        return;
+
+    double step = 20.0;
+    sb->SetValue(sb->mValue - theDelta * step);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -115,52 +223,116 @@ ButtonWidget *ModesDialog::CreateModeHitArea(int theId)
 
 ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_DIALOG_BUTTON,
                                           DialogType_Modes, true,
-                                          ModesDialogGraphics::kTitle,
-                                          ModesDialogGraphics::kEmptyLines,
-                                          ModesDialogGraphics::kEmptyFooter,
+                                          ModesCatalog::kTitle,
+                                          ModesCatalog::kEmptyLines,
+                                          ModesCatalog::kEmptyFooter,
                                           Dialog::BUTTONS_OK_CANCEL, false)
 {
-    mHoveredModeId = -1;
+    mHoveredHitId = -1;
+    mSelectedGroupIndex = 0;
+    mDividerX = 0;
     mTooltip = new ModeHelpTooltip();
+    mModesPane = new ModesPane(this);
 
-    mColorsBanCheckbox = MakeCheckbox(ModesDialogGraphics::kColorsBanCheckboxId, this);
-    mUnpoweredCheckbox = MakeCheckbox(ModesDialogGraphics::kUnpoweredCheckboxId, this);
-    mNoSwapCheckbox = MakeCheckbox(ModesDialogGraphics::kNoSwapCheckboxId, this);
-    mSonicCheckbox = MakeCheckbox(ModesDialogGraphics::kSonicCheckboxId, this);
+    mGroupList = new ListWidget(ModesCatalog::kGroupListId, Sexy::FONT_DIALOG, this);
+    mGroupScrollbar = new ScrollbarWidget(ModesCatalog::kGroupListId, mGroupList);
+    mGroupList->mScrollbar = mGroupScrollbar;
+    mGroupList->mJustify = ListWidget::JUSTIFY_CENTER;
+    mGroupList->mItemHeight = ModesCatalog::kGroupItemHeight;
+    mGroupList->SetColors(ModesCatalog::aGroupListColors, 5);
+    mGroupList->mDrawOutline = true;
+    mGroupScrollbar->SetInvisIfNoScroll(true);
 
-    mColorsBanHit = CreateModeHitArea(ModesDialogGraphics::kColorsBanHitId);
-    mUnpoweredHit = CreateModeHitArea(ModesDialogGraphics::kUnpoweredHitId);
-    mNoSwapHit = CreateModeHitArea(ModesDialogGraphics::kNoSwapHitId);
-    mSonicHit = CreateModeHitArea(ModesDialogGraphics::kSonicHitId);
+    mModesScrollbar = new ScrollbarWidget(ModesCatalog::kModesScrollbarId, mModesPane);
+    mModesScrollbar->SetInvisIfNoScroll(true);
+
+    for (int i = 0; i < ModesCatalog::Mode_Count; i++)
+    {
+        mModeSlots[i].mCheckbox = NULL;
+        mModeSlots[i].mHit = NULL;
+    }
+
+    for (int i = 0; i < ModesCatalog::kModeCount; i++)
+    {
+        const ModesCatalog::ModeDef &def = ModesCatalog::kModes[i];
+        ModeWidgetSlot &slot = mModeSlots[def.id];
+        slot.mCheckbox = MakeCheckbox((int)def.id, this);
+        slot.mHit = CreateModeHitArea(ModesCatalog::HitIdForMode(def.id));
+        mModesPane->AddWidget(slot.mCheckbox);
+        mModesPane->AddWidget(slot.mHit);
+    }
+
+    mColorsBanCheckbox = mModeSlots[ModesCatalog::Mode_ColorsBan].mCheckbox;
+    mUnpoweredCheckbox = mModeSlots[ModesCatalog::Mode_Unpowered].mCheckbox;
+    mNoSwapCheckbox = mModeSlots[ModesCatalog::Mode_NoSwap].mCheckbox;
+    mSonicCheckbox = mModeSlots[ModesCatalog::Mode_Sonic].mCheckbox;
+    mMachineGunCheckbox = mModeSlots[ModesCatalog::Mode_MachineGun].mCheckbox;
+    mBomberCheckbox = mModeSlots[ModesCatalog::Mode_Bomber].mCheckbox;
+    mUglyChainCheckbox = mModeSlots[ModesCatalog::Mode_UglyChain].mCheckbox;
+    mMovingHoleCheckbox = mModeSlots[ModesCatalog::Mode_MovingHole].mCheckbox;
 
     CircleShootApp *app = GetCircleShootApp();
-    mColorsBanCheckbox->mChecked = app->mColorsBanMode;
-    mUnpoweredCheckbox->mChecked = app->mUnpoweredMode;
-    mNoSwapCheckbox->mChecked = app->mNoSwapMode;
-    mSonicCheckbox->mChecked = app->mSonicMode;
+    if (mColorsBanCheckbox != NULL)
+        mColorsBanCheckbox->mChecked = app->mColorsBanMode;
+    if (mUnpoweredCheckbox != NULL)
+        mUnpoweredCheckbox->mChecked = app->mUnpoweredMode;
+    if (mNoSwapCheckbox != NULL)
+        mNoSwapCheckbox->mChecked = app->mNoSwapMode;
+    if (mSonicCheckbox != NULL)
+        mSonicCheckbox->mChecked = app->mSonicMode;
+    if (mMachineGunCheckbox != NULL)
+        mMachineGunCheckbox->mChecked = app->mMachineGunMode;
+    if (mBomberCheckbox != NULL)
+        mBomberCheckbox->mChecked = app->mBomberMode;
+    if (mUglyChainCheckbox != NULL)
+        mUglyChainCheckbox->mChecked = app->mUglyChainMode;
+    if (mMovingHoleCheckbox != NULL)
+        mMovingHoleCheckbox->mChecked = app->mMovingHoleMode;
 
     for (int i = 0; i < MAX_BALL_COLORS; i++)
         mPendingBannedColors[i] = app->mBannedColors[i];
     for (int i = 0; i < PowerType_Max; i++)
         mPendingDisabledPowerUps[i] = app->mDisabledPowerUps[i];
     mPendingChainSpeedMultiplier = app->mChainSpeedMultiplier;
+    mPendingMovingHoleSpeed = app->mMovingHoleSpeed;
 
-    mYesButton->mLabel = ModesDialogGraphics::kApplyLabel;
-    mNoButton->mLabel = ModesDialogGraphics::kCancelLabel;
+    for (int i = 0; i < ModesCatalog::kGroupCount; i++)
+        mGroupList->AddLine(ModesCatalog::kGroups[i].name, false);
+    mGroupList->SetSelect(0);
+
+    mYesButton->mLabel = ModesCatalog::kApplyLabel;
+    mNoButton->mLabel = ModesCatalog::kCancelLabel;
 }
 
 ModesDialog::~ModesDialog()
 {
-    // PrepareClose() should already have detached & deleted these; keep guards for safety.
-    delete mColorsBanCheckbox;
-    delete mUnpoweredCheckbox;
-    delete mNoSwapCheckbox;
-    delete mSonicCheckbox;
-    delete mColorsBanHit;
-    delete mUnpoweredHit;
-    delete mNoSwapHit;
-    delete mSonicHit;
+    // PrepareClose() should already have cleaned up; keep guards for safety.
+    for (int i = 0; i < ModesCatalog::Mode_Count; i++)
+    {
+        delete mModeSlots[i].mCheckbox;
+        mModeSlots[i].mCheckbox = NULL;
+        delete mModeSlots[i].mHit;
+        mModeSlots[i].mHit = NULL;
+    }
+    mColorsBanCheckbox = NULL;
+    mUnpoweredCheckbox = NULL;
+    mNoSwapCheckbox = NULL;
+    mSonicCheckbox = NULL;
+    mMachineGunCheckbox = NULL;
+    mBomberCheckbox = NULL;
+    mUglyChainCheckbox = NULL;
+    mMovingHoleCheckbox = NULL;
+
+    delete mModesPane;
+    mModesPane = NULL;
+    delete mModesScrollbar;
+    mModesScrollbar = NULL;
+    delete mGroupList;
+    mGroupList = NULL;
+    delete mGroupScrollbar;
+    mGroupScrollbar = NULL;
     delete mTooltip;
+    mTooltip = NULL;
 }
 
 void ModesDialog::PrepareClose()
@@ -170,93 +342,215 @@ void ModesDialog::PrepareClose()
     WidgetManager *wm = mWidgetManager;
     if (wm != NULL)
     {
-        if (mColorsBanCheckbox != NULL && mColorsBanCheckbox->mWidgetManager != NULL)
-            wm->RemoveWidget(mColorsBanCheckbox);
-        if (mUnpoweredCheckbox != NULL && mUnpoweredCheckbox->mWidgetManager != NULL)
-            wm->RemoveWidget(mUnpoweredCheckbox);
-        if (mNoSwapCheckbox != NULL && mNoSwapCheckbox->mWidgetManager != NULL)
-            wm->RemoveWidget(mNoSwapCheckbox);
-        if (mSonicCheckbox != NULL && mSonicCheckbox->mWidgetManager != NULL)
-            wm->RemoveWidget(mSonicCheckbox);
-        if (mColorsBanHit != NULL && mColorsBanHit->mWidgetManager != NULL)
-            wm->RemoveWidget(mColorsBanHit);
-        if (mUnpoweredHit != NULL && mUnpoweredHit->mWidgetManager != NULL)
-            wm->RemoveWidget(mUnpoweredHit);
-        if (mNoSwapHit != NULL && mNoSwapHit->mWidgetManager != NULL)
-            wm->RemoveWidget(mNoSwapHit);
-        if (mSonicHit != NULL && mSonicHit->mWidgetManager != NULL)
-            wm->RemoveWidget(mSonicHit);
+        if (mGroupList != NULL && mGroupList->mWidgetManager != NULL)
+            wm->RemoveWidget(mGroupList);
+        if (mGroupScrollbar != NULL && mGroupScrollbar->mWidgetManager != NULL)
+            wm->RemoveWidget(mGroupScrollbar);
+        if (mModesPane != NULL && mModesPane->mWidgetManager != NULL)
+            wm->RemoveWidget(mModesPane);
+        if (mModesScrollbar != NULL && mModesScrollbar->mWidgetManager != NULL)
+            wm->RemoveWidget(mModesScrollbar);
         if (mTooltip != NULL && mTooltip->mWidgetManager != NULL)
             wm->RemoveWidget(mTooltip);
     }
 
-    delete mColorsBanCheckbox;
+    if (mModesPane != NULL)
+        mModesPane->RemoveAllWidgets(false);
+
+    for (int i = 0; i < ModesCatalog::Mode_Count; i++)
+    {
+        delete mModeSlots[i].mCheckbox;
+        mModeSlots[i].mCheckbox = NULL;
+        delete mModeSlots[i].mHit;
+        mModeSlots[i].mHit = NULL;
+    }
     mColorsBanCheckbox = NULL;
-    delete mUnpoweredCheckbox;
     mUnpoweredCheckbox = NULL;
-    delete mNoSwapCheckbox;
     mNoSwapCheckbox = NULL;
-    delete mSonicCheckbox;
     mSonicCheckbox = NULL;
-    delete mColorsBanHit;
-    mColorsBanHit = NULL;
-    delete mUnpoweredHit;
-    mUnpoweredHit = NULL;
-    delete mNoSwapHit;
-    mNoSwapHit = NULL;
-    delete mSonicHit;
-    mSonicHit = NULL;
+    mMachineGunCheckbox = NULL;
+    mBomberCheckbox = NULL;
+    mUglyChainCheckbox = NULL;
+    mMovingHoleCheckbox = NULL;
+
+    delete mModesPane;
+    mModesPane = NULL;
+    delete mModesScrollbar;
+    mModesScrollbar = NULL;
+    delete mGroupList;
+    mGroupList = NULL;
+    delete mGroupScrollbar;
+    mGroupScrollbar = NULL;
     delete mTooltip;
     mTooltip = NULL;
 }
 
-void ModesDialog::LayoutModeCell(Checkbox *theCheckbox, ButtonWidget *theHit, const char *theLabel, int theX, int theY)
+void ModesDialog::LayoutModeWidgets()
 {
-    int h = theCheckbox->mHeight;
-    theCheckbox->Resize(theX, theY, theCheckbox->mWidth, h);
+    if (mModesPane == NULL)
+        return;
 
-    // Hit area covers the label drawn by DrawCheckboxText (starts at checkbox right edge).
-    int labelX = theX + theCheckbox->mWidth;
-    int labelW = FONT_DIALOG->StringWidth(theLabel) + ModesDialogGraphics::kLabelHitPadX * 2;
-    theHit->Resize(labelX, theY, labelW, ModesDialogGraphics::kLabelHitHeight);
+    ModesCatalog::GroupId selectedGroup = ModesCatalog::Group_Limitations;
+    if (mSelectedGroupIndex >= 0 && mSelectedGroupIndex < ModesCatalog::kGroupCount)
+        selectedGroup = ModesCatalog::kGroups[mSelectedGroupIndex].id;
+
+    int scrollY = mModesPane->mScrollY;
+    int cols = ModesCatalog::kModesPerRow;
+    if (cols < 1)
+        cols = 1;
+
+    int paneW = mModesPane->mWidth;
+    int colW = (paneW - ModesCatalog::kModeColGap * (cols - 1)) / cols;
+    if (colW < 1)
+        colW = 1;
+
+    int rowH = 0;
+    int visibleIndex = 0;
+
+    for (int i = 0; i < ModesCatalog::Mode_Count; i++)
+    {
+        ModeWidgetSlot &slot = mModeSlots[i];
+        if (slot.mCheckbox == NULL || slot.mHit == NULL)
+            continue;
+
+        const ModesCatalog::ModeDef *def = ModesCatalog::FindModeDef((ModesCatalog::ModeId)i);
+        bool inGroup = (def != NULL && def->groupId == selectedGroup);
+
+        slot.mCheckbox->SetVisible(inGroup);
+        slot.mHit->SetVisible(inGroup);
+
+        if (!inGroup)
+            continue;
+
+        if (rowH == 0)
+            rowH = slot.mCheckbox->mHeight;
+
+        int col = visibleIndex % cols;
+        int row = visibleIndex / cols;
+        int x = col * (colW + ModesCatalog::kModeColGap);
+        int y = ModesCatalog::kPanePad + row * (rowH + ModesCatalog::kModeRowGap) - scrollY;
+
+        slot.mCheckbox->Resize(x, y, slot.mCheckbox->mWidth, slot.mCheckbox->mHeight);
+
+        int labelX = x + slot.mCheckbox->mWidth;
+        int labelW = FONT_DIALOG->StringWidth(def->label) + ModesCatalog::kLabelHitPadX * 2;
+        slot.mHit->Resize(labelX, y, labelW, ModesCatalog::kLabelHitHeight);
+
+        visibleIndex++;
+    }
+
+    if (rowH == 0)
+        rowH = ModesCatalog::kLabelHitHeight;
+
+    int rows = (visibleIndex + cols - 1) / cols;
+    int contentH = 0;
+    if (rows > 0)
+        contentH = ModesCatalog::kPanePad * 2 + rows * rowH + (rows - 1) * ModesCatalog::kModeRowGap;
+
+    mModesPane->mContentHeight = contentH;
+    UpdateModesScrollbar();
+}
+
+void ModesDialog::UpdateModesScrollbar()
+{
+    if (mModesPane == NULL || mModesScrollbar == NULL)
+        return;
+
+    int page = mModesPane->mHeight;
+    int content = mModesPane->mContentHeight;
+
+    mModesScrollbar->SetPageSize(page);
+    mModesScrollbar->SetMaxValue(content);
+
+    int maxScroll = content - page;
+    if (maxScroll < 0)
+        maxScroll = 0;
+
+    if (mModesPane->mScrollY > maxScroll)
+    {
+        mModesPane->mScrollY = maxScroll;
+        mModesScrollbar->mValue = maxScroll;
+    }
+}
+
+void ModesDialog::SelectGroup(int theIndex)
+{
+    if (theIndex < 0 || theIndex >= ModesCatalog::kGroupCount)
+        return;
+
+    mSelectedGroupIndex = theIndex;
+    if (mGroupList != NULL)
+        mGroupList->SetSelect(theIndex);
+
+    if (mModesPane != NULL)
+        mModesPane->mScrollY = 0;
+    if (mModesScrollbar != NULL)
+        mModesScrollbar->SetValue(0);
+
+    LayoutModeWidgets();
+    MarkDirty();
 }
 
 void ModesDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 {
     CircleDialog::Resize(theX, theY, theWidth, theHeight);
 
-    int left = GetLeft();
-    int top = GetTop() + ModesDialogGraphics::kFirstRowTopOffset;
-    int colW = ModesDialogGraphics::kColumnWidth;
-    int rowGap = ModesDialogGraphics::kRowVerticalGap;
-    int rowH = mColorsBanCheckbox->mHeight;
+    if (mGroupList == NULL || mModesPane == NULL)
+        return;
 
-    // Row 0: Colors ban | Unpowered
-    LayoutModeCell(mColorsBanCheckbox, mColorsBanHit, ModesDialogGraphics::kColorsBanLabel, left, top);
-    LayoutModeCell(mUnpoweredCheckbox, mUnpoweredHit, ModesDialogGraphics::kUnpoweredLabel, left + colW, top);
+    int contentLeft = GetLeft();
+    int contentTop = GetTop();
+    int contentWidth = GetWidth();
+    int contentBottom = mYesButton->mY - ModesCatalog::kContentBottomPad;
+    int contentHeight = contentBottom - contentTop;
+    if (contentHeight < 40)
+        contentHeight = 40;
 
-    // Row 1: No swap | Sonic
-    int row1Y = top + rowH + rowGap;
-    LayoutModeCell(mNoSwapCheckbox, mNoSwapHit, ModesDialogGraphics::kNoSwapLabel, left, row1Y);
-    LayoutModeCell(mSonicCheckbox, mSonicHit, ModesDialogGraphics::kSonicLabel, left + colW, row1Y);
+    float leftFrac = ModesCatalog::kLeftPaneWidthFraction;
+    if (leftFrac < 0.05f)
+        leftFrac = 0.05f;
+    if (leftFrac > 0.9f)
+        leftFrac = 0.9f;
+
+    int leftPaneW = (int)(contentWidth * leftFrac);
+    int rightPaneW = contentWidth - leftPaneW;
+    mDividerX = contentLeft + leftPaneW;
+
+    int groupSbW = ModesCatalog::kScrollbarWidth;
+    int groupListW = leftPaneW - ModesCatalog::kPanePad * 2 - groupSbW;
+    if (groupListW < 20)
+        groupListW = 20;
+
+    int groupX = contentLeft + ModesCatalog::kPanePad;
+    mGroupList->Resize(groupX, contentTop, groupListW, contentHeight);
+    mGroupScrollbar->ResizeScrollbar(groupX + groupListW, contentTop, groupSbW, contentHeight);
+
+    int modesX = mDividerX + ModesCatalog::kDividerHalfGap + ModesCatalog::kPanePad;
+    int modesRight = contentLeft + contentWidth - ModesCatalog::kPanePad;
+    int modesSbW = ModesCatalog::kScrollbarWidth;
+    int modesPaneW = modesRight - modesX - modesSbW;
+    if (modesPaneW < 40)
+        modesPaneW = 40;
+
+    mModesPane->Resize(modesX, contentTop, modesPaneW, contentHeight);
+    mModesScrollbar->ResizeScrollbar(modesX + modesPaneW, contentTop, modesSbW, contentHeight);
+
+    LayoutModeWidgets();
 }
 
 int ModesDialog::GetPreferredHeight(int theWidth)
 {
-    return CircleDialog::GetPreferredHeight(theWidth) + ModesDialogGraphics::kExtraPreferredHeight;
+    (void)theWidth;
+    return CIRCLE_WINDOW_HEIGHT;
 }
 
 void ModesDialog::AddedToManager(WidgetManager *theWidgetManager)
 {
     CircleDialog::AddedToManager(theWidgetManager);
-    theWidgetManager->AddWidget(mColorsBanCheckbox);
-    theWidgetManager->AddWidget(mUnpoweredCheckbox);
-    theWidgetManager->AddWidget(mNoSwapCheckbox);
-    theWidgetManager->AddWidget(mSonicCheckbox);
-    theWidgetManager->AddWidget(mColorsBanHit);
-    theWidgetManager->AddWidget(mUnpoweredHit);
-    theWidgetManager->AddWidget(mNoSwapHit);
-    theWidgetManager->AddWidget(mSonicHit);
+    theWidgetManager->AddWidget(mGroupList);
+    theWidgetManager->AddWidget(mGroupScrollbar);
+    theWidgetManager->AddWidget(mModesPane);
+    theWidgetManager->AddWidget(mModesScrollbar);
     theWidgetManager->AddWidget(mTooltip);
 }
 
@@ -264,46 +558,45 @@ void ModesDialog::RemovedFromManager(WidgetManager *theWidgetManager)
 {
     CircleDialog::RemovedFromManager(theWidgetManager);
 
-    // May already be removed by PrepareClose(); only remove if still attached.
-    if (mColorsBanCheckbox != NULL && mColorsBanCheckbox->mWidgetManager != NULL)
-        theWidgetManager->RemoveWidget(mColorsBanCheckbox);
-    if (mUnpoweredCheckbox != NULL && mUnpoweredCheckbox->mWidgetManager != NULL)
-        theWidgetManager->RemoveWidget(mUnpoweredCheckbox);
-    if (mNoSwapCheckbox != NULL && mNoSwapCheckbox->mWidgetManager != NULL)
-        theWidgetManager->RemoveWidget(mNoSwapCheckbox);
-    if (mSonicCheckbox != NULL && mSonicCheckbox->mWidgetManager != NULL)
-        theWidgetManager->RemoveWidget(mSonicCheckbox);
-    if (mColorsBanHit != NULL && mColorsBanHit->mWidgetManager != NULL)
-        theWidgetManager->RemoveWidget(mColorsBanHit);
-    if (mUnpoweredHit != NULL && mUnpoweredHit->mWidgetManager != NULL)
-        theWidgetManager->RemoveWidget(mUnpoweredHit);
-    if (mNoSwapHit != NULL && mNoSwapHit->mWidgetManager != NULL)
-        theWidgetManager->RemoveWidget(mNoSwapHit);
-    if (mSonicHit != NULL && mSonicHit->mWidgetManager != NULL)
-        theWidgetManager->RemoveWidget(mSonicHit);
+    if (mGroupList != NULL && mGroupList->mWidgetManager != NULL)
+        theWidgetManager->RemoveWidget(mGroupList);
+    if (mGroupScrollbar != NULL && mGroupScrollbar->mWidgetManager != NULL)
+        theWidgetManager->RemoveWidget(mGroupScrollbar);
+    if (mModesPane != NULL && mModesPane->mWidgetManager != NULL)
+        theWidgetManager->RemoveWidget(mModesPane);
+    if (mModesScrollbar != NULL && mModesScrollbar->mWidgetManager != NULL)
+        theWidgetManager->RemoveWidget(mModesScrollbar);
     if (mTooltip != NULL && mTooltip->mWidgetManager != NULL)
         theWidgetManager->RemoveWidget(mTooltip);
 }
 
 bool ModesDialog::IsModeHitId(int theId) const
 {
-    return theId == ModesDialogGraphics::kColorsBanHitId ||
-           theId == ModesDialogGraphics::kUnpoweredHitId ||
-           theId == ModesDialogGraphics::kNoSwapHitId ||
-           theId == ModesDialogGraphics::kSonicHitId;
+    return theId >= ModesCatalog::kHitIdBase &&
+           theId < ModesCatalog::kHitIdBase + ModesCatalog::Mode_Count;
 }
 
-const char *ModesDialog::GetDescriptionForModeId(int theId) const
+ModesCatalog::ModeId ModesDialog::ModeIdFromHitId(int theId) const
 {
-    if (theId == ModesDialogGraphics::kColorsBanHitId)
-        return ModesDialogGraphics::kColorsBanDescription;
-    if (theId == ModesDialogGraphics::kUnpoweredHitId)
-        return ModesDialogGraphics::kUnpoweredDescription;
-    if (theId == ModesDialogGraphics::kNoSwapHitId)
-        return ModesDialogGraphics::kNoSwapDescription;
-    if (theId == ModesDialogGraphics::kSonicHitId)
-        return ModesDialogGraphics::kSonicDescription;
-    return "";
+    return (ModesCatalog::ModeId)(theId - ModesCatalog::kHitIdBase);
+}
+
+Checkbox *ModesDialog::CheckboxForMode(ModesCatalog::ModeId theId) const
+{
+    if (theId < 0 || theId >= ModesCatalog::Mode_Count)
+        return NULL;
+    return mModeSlots[theId].mCheckbox;
+}
+
+const char *ModesDialog::GetDescriptionForHitId(int theId) const
+{
+    if (!IsModeHitId(theId))
+        return "";
+
+    const ModesCatalog::ModeDef *def = ModesCatalog::FindModeDef(ModeIdFromHitId(theId));
+    if (def == NULL)
+        return "";
+    return def->description;
 }
 
 void ModesDialog::PositionTooltipNearCursor()
@@ -311,8 +604,8 @@ void ModesDialog::PositionTooltipNearCursor()
     if (mWidgetManager == NULL || mTooltip == NULL || !mTooltip->mVisible)
         return;
 
-    int x = mWidgetManager->mLastMouseX + ModesDialogGraphics::kTooltipCursorOffsetX;
-    int y = mWidgetManager->mLastMouseY + ModesDialogGraphics::kTooltipCursorOffsetY;
+    int x = mWidgetManager->mLastMouseX + ModesCatalog::kTooltipCursorOffsetX;
+    int y = mWidgetManager->mLastMouseY + ModesCatalog::kTooltipCursorOffsetY;
 
     if (x + mTooltip->mWidth > CIRCLE_WINDOW_WIDTH)
         x = mWidgetManager->mLastMouseX - mTooltip->mWidth - 8;
@@ -335,16 +628,15 @@ void ModesDialog::ShowTooltip(const char *theText)
 
     mTooltip->mText = theText;
 
-    // Match Graphics::GetWordWrappedHeight: measure with a dest-less Graphics.
     Graphics aMeasure;
     aMeasure.SetFont(FONT_DIALOG);
 
-    int textWidth = ModesDialogGraphics::kTooltipWidth - 2 * ModesDialogGraphics::kTooltipPadX;
-    int textHeight = aMeasure.GetWordWrappedHeight(textWidth, theText, ModesDialogGraphics::kTooltipLineSpacing);
-    int tipW = ModesDialogGraphics::kTooltipWidth;
-    int tipH = textHeight + 2 * ModesDialogGraphics::kTooltipPadY;
-    if (tipH < FONT_DIALOG->GetHeight() + 2 * ModesDialogGraphics::kTooltipPadY)
-        tipH = FONT_DIALOG->GetHeight() + 2 * ModesDialogGraphics::kTooltipPadY;
+    int textWidth = ModesCatalog::kTooltipWidth - 2 * ModesCatalog::kTooltipPadX;
+    int textHeight = aMeasure.GetWordWrappedHeight(textWidth, theText, ModesCatalog::kTooltipLineSpacing);
+    int tipW = ModesCatalog::kTooltipWidth;
+    int tipH = textHeight + 2 * ModesCatalog::kTooltipPadY;
+    if (tipH < FONT_DIALOG->GetHeight() + 2 * ModesCatalog::kTooltipPadY)
+        tipH = FONT_DIALOG->GetHeight() + 2 * ModesCatalog::kTooltipPadY;
 
     mTooltip->Resize(0, 0, tipW, tipH);
     mTooltip->SetVisible(true);
@@ -360,25 +652,33 @@ void ModesDialog::HideTooltip()
     }
 }
 
+void ModesDialog::ListClicked(int theId, int theIdx, int theClickCount)
+{
+    (void)theClickCount;
+    if (theId != ModesCatalog::kGroupListId)
+        return;
+
+    SelectGroup(theIdx);
+}
+
 void ModesDialog::CheckboxChecked(int theId, bool checked)
 {
     CircleShootApp *app = GetCircleShootApp();
+    const ModesCatalog::ModeDef *def = ModesCatalog::FindModeDef((ModesCatalog::ModeId)theId);
+    if (def == NULL || !def->opensPicker || !checked)
+    {
+        MarkDirty();
+        return;
+    }
 
-    if (theId == ModesDialogGraphics::kColorsBanCheckboxId)
-    {
-        if (checked)
-            app->DoColorsBanDialog();
-    }
-    else if (theId == ModesDialogGraphics::kUnpoweredCheckboxId)
-    {
-        if (checked)
-            app->DoUnpoweredDialog();
-    }
-    else if (theId == ModesDialogGraphics::kSonicCheckboxId)
-    {
-        if (checked)
-            app->DoSonicDialog();
-    }
+    if (def->id == ModesCatalog::Mode_ColorsBan)
+        app->DoColorsBanDialog();
+    else if (def->id == ModesCatalog::Mode_Unpowered)
+        app->DoUnpoweredDialog();
+    else if (def->id == ModesCatalog::Mode_Sonic)
+        app->DoSonicDialog();
+    else if (def->id == ModesCatalog::Mode_MovingHole)
+        app->DoMovingHoleDialog();
 
     MarkDirty();
 }
@@ -388,8 +688,10 @@ void ModesDialog::ButtonMouseEnter(int theId)
     if (!IsModeHitId(theId))
         return;
 
-    mHoveredModeId = theId;
-    ShowTooltip(GetDescriptionForModeId(theId));
+    mHoveredHitId = theId;
+    ShowTooltip(GetDescriptionForHitId(theId));
+    if (mModesPane != NULL)
+        mModesPane->MarkDirty();
     MarkDirty();
 }
 
@@ -398,63 +700,125 @@ void ModesDialog::ButtonMouseLeave(int theId)
     if (!IsModeHitId(theId))
         return;
 
-    if (mHoveredModeId == theId)
+    if (mHoveredHitId == theId)
     {
-        mHoveredModeId = -1;
+        mHoveredHitId = -1;
         HideTooltip();
+        if (mModesPane != NULL)
+            mModesPane->MarkDirty();
         MarkDirty();
     }
 }
 
 void ModesDialog::ButtonMouseMove(int theId, int theX, int theY)
 {
+    (void)theX;
+    (void)theY;
     if (IsModeHitId(theId) && mTooltip != NULL && mTooltip->mVisible)
         PositionTooltipNearCursor();
 }
 
-void ModesDialog::DrawModeRow(Graphics *g, Checkbox *theCheckbox, ButtonWidget *theHit, const char *theLabel)
+void ModesDialog::DrawModeLabels(Graphics *g)
 {
-    if (theCheckbox == NULL || theHit == NULL)
-        return;
+    // Graphics is translated to ModesPane; child widget coords are pane-relative.
+    g->SetFont(FONT_DIALOG);
 
-    if (theHit->mIsOver)
-        g->SetColor(Color(0xFFFFFF));
-    else
-        g->SetColor(mColors[COLOR_LINES]);
+    ModesCatalog::GroupId selectedGroup = ModesCatalog::Group_Limitations;
+    if (mSelectedGroupIndex >= 0 && mSelectedGroupIndex < ModesCatalog::kGroupCount)
+        selectedGroup = ModesCatalog::kGroups[mSelectedGroupIndex].id;
 
-    // Official Options-style drawing: label + line attached to the checkbox gem.
-    DrawCheckboxText(g, theLabel, theCheckbox);
+    for (int i = 0; i < ModesCatalog::kModeCount; i++)
+    {
+        const ModesCatalog::ModeDef &def = ModesCatalog::kModes[i];
+        if (def.groupId != selectedGroup)
+            continue;
+
+        ModeWidgetSlot &slot = mModeSlots[def.id];
+        if (slot.mCheckbox == NULL || slot.mHit == NULL || !slot.mCheckbox->mVisible)
+            continue;
+
+        if (slot.mHit->mIsOver)
+            g->SetColor(Color(0xFFFFFF));
+        else
+            g->SetColor(mColors[COLOR_LINES]);
+
+        // Local DrawCheckboxText equivalent (pane-relative coords).
+        int aX = slot.mCheckbox->mX + slot.mCheckbox->mWidth;
+        int aY = slot.mCheckbox->mY;
+        g->DrawString(def.label, aX, aY + 25);
+
+        Image *aImage = Sexy::IMAGE_DIALOG_CHECKBOXLINE;
+        int aStartX = aX - 5;
+        int aStrWidth = g->GetFont()->StringWidth(def.label);
+        int aEndX = aStrWidth + 5;
+        int aY2 = aY + 29;
+
+        for (int px = 0; px < aEndX; px += aImage->GetWidth())
+        {
+            Rect aRect(0, 0, aEndX - px, aImage->GetHeight());
+            int aWidth = aEndX - px;
+            if (aWidth > aImage->GetWidth())
+                aWidth = aImage->GetWidth();
+            aRect.mWidth = aWidth;
+            g->DrawImage(aImage, px + aStartX, aY2, aRect);
+        }
+
+        g->DrawImage(Sexy::IMAGE_DIALOG_CHECKBOXCAP, aEndX + aStartX, aY2);
+    }
 }
 
 void ModesDialog::ButtonDepress(int theId)
 {
-    // Mode-name hit areas are hover-only.
     if (IsModeHitId(theId))
+    {
+        ModesCatalog::ModeId modeId = ModeIdFromHitId(theId);
+        Checkbox *checkbox = CheckboxForMode(modeId);
+        if (checkbox != NULL && checkbox->mVisible)
+            checkbox->SetChecked(!checkbox->IsChecked());
         return;
+    }
 
-    // Defer to Dialog so Apply/Cancel go through CircleShootApp::CheckYesNoButton.
-    // Do not touch sibling widgets here — FinishModesDialog calls PrepareClose first.
     Dialog::ButtonDepress(theId);
 }
 
 bool ModesDialog::IsColorsBanSelected() const
 {
-    return mColorsBanCheckbox->IsChecked();
+    return mColorsBanCheckbox != NULL && mColorsBanCheckbox->IsChecked();
 }
 
 bool ModesDialog::IsUnpoweredSelected() const
 {
-    return mUnpoweredCheckbox->IsChecked();
+    return mUnpoweredCheckbox != NULL && mUnpoweredCheckbox->IsChecked();
 }
 
 bool ModesDialog::IsNoSwapSelected() const
 {
-    return mNoSwapCheckbox->IsChecked();
+    return mNoSwapCheckbox != NULL && mNoSwapCheckbox->IsChecked();
 }
 
 bool ModesDialog::IsSonicSelected() const
 {
-    return mSonicCheckbox->IsChecked();
+    return mSonicCheckbox != NULL && mSonicCheckbox->IsChecked();
+}
+
+bool ModesDialog::IsMachineGunSelected() const
+{
+    return mMachineGunCheckbox != NULL && mMachineGunCheckbox->IsChecked();
+}
+
+bool ModesDialog::IsBomberSelected() const
+{
+    return mBomberCheckbox != NULL && mBomberCheckbox->IsChecked();
+}
+
+bool ModesDialog::IsUglyChainSelected() const
+{
+    return mUglyChainCheckbox != NULL && mUglyChainCheckbox->IsChecked();
+}
+
+bool ModesDialog::IsMovingHoleSelected() const
+{
+    return mMovingHoleCheckbox != NULL && mMovingHoleCheckbox->IsChecked();
 }
 
 void ModesDialog::GetBannedColors(bool outBanned[MAX_BALL_COLORS]) const
@@ -471,7 +835,8 @@ void ModesDialog::SetBannedColors(const bool banned[MAX_BALL_COLORS])
 
 void ModesDialog::SetColorsBanSelected(bool selected)
 {
-    mColorsBanCheckbox->SetChecked(selected, false);
+    if (mColorsBanCheckbox != NULL)
+        mColorsBanCheckbox->SetChecked(selected, false);
     MarkDirty();
 }
 
@@ -489,7 +854,8 @@ void ModesDialog::SetDisabledPowerUps(const bool disabled[PowerType_Max])
 
 void ModesDialog::SetUnpoweredSelected(bool selected)
 {
-    mUnpoweredCheckbox->SetChecked(selected, false);
+    if (mUnpoweredCheckbox != NULL)
+        mUnpoweredCheckbox->SetChecked(selected, false);
     MarkDirty();
 }
 
@@ -505,18 +871,29 @@ void ModesDialog::SetChainSpeedMultiplier(float multiplier)
 
 void ModesDialog::SetSonicSelected(bool selected)
 {
-    mSonicCheckbox->SetChecked(selected, false);
+    if (mSonicCheckbox != NULL)
+        mSonicCheckbox->SetChecked(selected, false);
+    MarkDirty();
+}
+
+int ModesDialog::GetMovingHoleSpeed() const
+{
+    return mPendingMovingHoleSpeed;
+}
+
+void ModesDialog::SetMovingHoleSpeed(int speed)
+{
+    mPendingMovingHoleSpeed = speed;
+}
+
+void ModesDialog::SetMovingHoleSelected(bool selected)
+{
+    if (mMovingHoleCheckbox != NULL)
+        mMovingHoleCheckbox->SetChecked(selected, false);
     MarkDirty();
 }
 
 void ModesDialog::Draw(Graphics *g)
 {
     CircleDialog::Draw(g);
-
-    g->SetFont(FONT_DIALOG);
-
-    DrawModeRow(g, mColorsBanCheckbox, mColorsBanHit, ModesDialogGraphics::kColorsBanLabel);
-    DrawModeRow(g, mUnpoweredCheckbox, mUnpoweredHit, ModesDialogGraphics::kUnpoweredLabel);
-    DrawModeRow(g, mNoSwapCheckbox, mNoSwapHit, ModesDialogGraphics::kNoSwapLabel);
-    DrawModeRow(g, mSonicCheckbox, mSonicHit, ModesDialogGraphics::kSonicLabel);
 }

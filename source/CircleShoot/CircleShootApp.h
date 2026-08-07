@@ -62,7 +62,12 @@ namespace Sexy
         bool mDisabledPowerUps[PowerType_Max];
         bool mNoSwapMode;
         bool mSonicMode;
+        bool mMachineGunMode;
+        bool mBomberMode;
+        bool mUglyChainMode;
+        bool mMovingHoleMode;
         float mChainSpeedMultiplier;
+        int mMovingHoleSpeed; // 0 = Steady, 100 = Ultra fast
 
         bool IsColorBanned(int theColor) const;
         bool IsPowerUpDisabled(int thePowerType) const;
@@ -114,6 +119,7 @@ namespace Sexy
         void DoColorsBanDialog();
         void DoUnpoweredDialog();
         void DoSonicDialog();
+        void DoMovingHoleDialog();
         void DoModeHelpDialog(const std::string &theTitle, const std::string &theDescription);
         void DoConfirmContinueDialog(const std::string &theVerboseLevelString, const std::string &theDisplayName, int theScore);
         void DoGetReadyDialog();
@@ -136,6 +142,7 @@ namespace Sexy
         void FinishColorsBanDialog(bool apply);
         void FinishUnpoweredDialog(bool apply);
         void FinishSonicDialog(bool apply);
+        void FinishMovingHoleDialog(bool apply);
         void FinishConfirmMainMenuDialog(bool mainMenu);
         void FinishStatsDialog(bool);
 

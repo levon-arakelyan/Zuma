@@ -23,6 +23,7 @@
 #include "ColorsBanDialog.h"
 #include "UnpoweredDialog.h"
 #include "SonicDialog.h"
+#include "MovingHoleDialog.h"
 #include "StatsDialog.h"
 #include "UserDialog.h"
 #include "AdventureScreen.h"
@@ -84,7 +85,12 @@ CircleShootApp::CircleShootApp()
         mDisabledPowerUps[i] = false;
     mNoSwapMode = false;
     mSonicMode = false;
+    mMachineGunMode = false;
+    mBomberMode = false;
+    mUglyChainMode = false;
+    mMovingHoleMode = false;
     mChainSpeedMultiplier = 1.0f;
+    mMovingHoleSpeed = 20; // ~old 0.5s crawl rate; 100 = Ultra fast (~0.1s)
 }
 
 CircleShootApp::~CircleShootApp()
@@ -912,11 +918,13 @@ void CircleShootApp::DoConfirmQuitDialog()
 
 void CircleShootApp::SwitchSong(int id)
 {
-    if (this->mLastSong == id ||
-        (GetTickCount() - this->mLastSongSwitchTime) >= 5000)
-    {
+    if (this->mLastSong == id)
+        return;
+
+    // Entering danger (song 36): switch immediately.
+    // Leaving danger / other switches: keep the normal 5s debounce.
+    if (id == 36 || (GetTickCount() - this->mLastSongSwitchTime) >= 5000)
         PlaySong(id, true, 0.01);
-    }
 }
 
 void CircleShootApp::DoOptionsDialog()
@@ -934,7 +942,13 @@ void CircleShootApp::DoOptionsDialog()
 void CircleShootApp::DoModesDialog()
 {
     Dialog *dialog = new ModesDialog();
-    SetupDialog(dialog, 400);
+    dialog->SetHeaderFont(Sexy::FONT_TITLE);
+    dialog->SetLinesFont(Sexy::FONT_DIALOG);
+    dialog->SetColor(0, Sexy::Color(203, 201, 187));
+    dialog->SetColor(1, Sexy::Color(0xD5E520));
+    dialog->Resize(0, 0, CIRCLE_WINDOW_WIDTH, CIRCLE_WINDOW_HEIGHT);
+    SetupButton(dialog->mYesButton, 3);
+    SetupButton(dialog->mNoButton, 3);
     AddDialog(DialogType_Modes, dialog);
 }
 
@@ -989,6 +1003,19 @@ void CircleShootApp::DoSonicDialog()
     Dialog *dialog = new SonicDialog(initialMult);
     SetupDialog(dialog, 400);
     AddDialog(DialogType_Sonic, dialog);
+}
+
+void CircleShootApp::DoMovingHoleDialog()
+{
+    if (GetDialog(DialogType_MovingHole) != NULL)
+        return;
+
+    ModesDialog *modes = (ModesDialog *)GetDialog(DialogType_Modes);
+    int initialSpeed = (modes != NULL) ? modes->GetMovingHoleSpeed() : mMovingHoleSpeed;
+
+    Dialog *dialog = new MovingHoleDialog(initialSpeed);
+    SetupDialog(dialog, 400);
+    AddDialog(DialogType_MovingHole, dialog);
 }
 
 void CircleShootApp::DoModeHelpDialog(const std::string &theTitle, const std::string &theDescription)
@@ -1117,9 +1144,14 @@ void CircleShootApp::FinishModesDialog(bool apply)
     bool unpowered = false;
     bool noSwap = false;
     bool sonic = false;
+    bool machineGun = false;
+    bool bomber = false;
+    bool uglyChain = false;
+    bool movingHole = false;
     bool bannedColors[MAX_BALL_COLORS];
     bool disabledPowerUps[PowerType_Max];
     float chainSpeed = 1.0f;
+    int movingHoleSpeed = 20;
 
     if (apply)
     {
@@ -1129,7 +1161,12 @@ void CircleShootApp::FinishModesDialog(bool apply)
         dialog->GetDisabledPowerUps(disabledPowerUps);
         noSwap = dialog->IsNoSwapSelected();
         sonic = dialog->IsSonicSelected();
+        machineGun = dialog->IsMachineGunSelected();
+        bomber = dialog->IsBomberSelected();
+        uglyChain = dialog->IsUglyChainSelected();
+        movingHole = dialog->IsMovingHoleSelected();
         chainSpeed = dialog->GetChainSpeedMultiplier();
+        movingHoleSpeed = dialog->GetMovingHoleSpeed();
     }
 
     dialog->PrepareClose();
@@ -1137,6 +1174,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
     KillDialog(DialogType_ColorsBan);
     KillDialog(DialogType_Unpowered);
     KillDialog(DialogType_Sonic);
+    KillDialog(DialogType_MovingHole);
     KillDialog(DialogType_ModeHelp);
     KillDialog(DialogType_Modes);
 
@@ -1152,7 +1190,12 @@ void CircleShootApp::FinishModesDialog(bool apply)
 
         mNoSwapMode = noSwap;
         mSonicMode = sonic;
+        mMachineGunMode = machineGun;
+        mBomberMode = bomber;
+        mUglyChainMode = uglyChain;
+        mMovingHoleMode = movingHole;
         mChainSpeedMultiplier = chainSpeed;
+        mMovingHoleSpeed = movingHoleSpeed;
     }
 }
 
@@ -1229,6 +1272,29 @@ void CircleShootApp::FinishSonicDialog(bool apply)
     }
 
     KillDialog(DialogType_Sonic);
+}
+
+void CircleShootApp::FinishMovingHoleDialog(bool apply)
+{
+    MovingHoleDialog *holeDialog = (MovingHoleDialog *)GetDialog(DialogType_MovingHole);
+    ModesDialog *modesDialog = (ModesDialog *)GetDialog(DialogType_Modes);
+    if (holeDialog == NULL)
+        return;
+
+    if (apply)
+    {
+        if (modesDialog != NULL)
+        {
+            modesDialog->SetMovingHoleSpeed(holeDialog->GetSpeed());
+            modesDialog->SetMovingHoleSelected(true);
+        }
+    }
+    else if (modesDialog != NULL)
+    {
+        modesDialog->SetMovingHoleSelected(false);
+    }
+
+    KillDialog(DialogType_MovingHole);
 }
 
 bool CircleShootApp::IsColorBanned(int theColor) const
@@ -1329,6 +1395,9 @@ bool CircleShootApp::CheckYesNoButton(int theButton)
         case 2026:
             FinishSonicDialog(true);
             return true;
+        case 2028:
+            FinishMovingHoleDialog(true);
+            return true;
         default:
             KillDialog(theButton - 2000);
             return true;
@@ -1387,6 +1456,9 @@ bool CircleShootApp::CheckYesNoButton(int theButton)
             return true;
         case 3026:
             FinishSonicDialog(false);
+            return true;
+        case 3028:
+            FinishMovingHoleDialog(false);
             return true;
         default:
             KillDialog(theButton - 3000);

@@ -79,6 +79,9 @@ namespace Sexy
 		bool mFirstBallMovedBackwards;
 		bool mHaveSets;
 		int mDangerPoint;
+		int mEffectiveEndPoint;
+		float mEffectiveEndPointF;
+		float mHoleRotationOffset;
 		int mPathLightEndFrame;
 		int mLastClearedBallPoint;
 		bool mHadPowerUp;
@@ -111,6 +114,13 @@ namespace Sexy
 		void ClearPendingSucks(Ball *theEndBall);
 
 		void RollBallsIn();
+		int GetEffectiveEndPoint() const;
+		void RecalcDangerPoint();
+		float GetHoleFacingRotation(int thePoint) const;
+		void UpdateHoleAtEffectiveEnd();
+		void UpdateMovingHole();
+		int GetMovingHoleMinEnd() const;
+		int GetMovingHoleStepSize() const;
 
 	public:
 		CurveMgr(Board *theBoard);
@@ -135,6 +145,7 @@ namespace Sexy
 		bool CanRestart();
 		bool CanFire();
 		bool IsInDanger() { return mInDanger; }
+		bool HasHoleCaughtLeadBall() const;
 
 		Ball *CheckBallIntersection(const SexyVector3 &p1, const SexyVector3 &v1, float &t);
 

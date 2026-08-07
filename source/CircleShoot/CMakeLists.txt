@@ -27,6 +27,7 @@ add_executable(Zuma WIN32
     ColorsBanDialog.cpp
     UnpoweredDialog.cpp
     SonicDialog.cpp
+    MovingHoleDialog.cpp
     MoreGamesScreen.cpp
     OptionsDialog.cpp
     ParticleMgr.cpp

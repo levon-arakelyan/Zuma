@@ -73,6 +73,9 @@ CurveMgr::CurveMgr(Board *theBoard)
     mBoard = theBoard;
     mSpriteMgr = NULL; // ??
     mWayPointMgr = new WayPointMgr();
+    mEffectiveEndPoint = 0;
+    mEffectiveEndPointF = 0.0f;
+    mHoleRotationOffset = 0.0f;
 }
 
 CurveMgr::~CurveMgr()
@@ -129,10 +132,12 @@ void CurveMgr::SetupLevel(LevelDesc *theDesc, SpriteMgr *theSpriteMgr, int theCu
     }
 
     mSpriteMgr->PlaceHole(mCurveNum, aHoleX, aHoleY, aSkullRotation);
-    mDangerPoint = mWayPointMgr->GetNumPoints() - mCurveDesc->mDangerDistance;
-
-    if (mDangerPoint >= mWayPointMgr->GetNumPoints())
-        mDangerPoint = mWayPointMgr->GetEndPoint();
+    mEffectiveEndPoint = mWayPointMgr->GetEndPoint();
+    mEffectiveEndPointF = (float)mEffectiveEndPoint;
+    // End-of-path CalcPerpendicular looks backward; mid-path looks forward (180° flip).
+    // Keep a stable facing offset from the authored/placed rotation.
+    mHoleRotationOffset = aSkullRotation - GetHoleFacingRotation(mEffectiveEndPoint);
+    RecalcDangerPoint();
 }
 
 void CurveMgr::SetupLevelDesc(LevelDesc *theDesc)
@@ -140,10 +145,215 @@ void CurveMgr::SetupLevelDesc(LevelDesc *theDesc)
     mLevelDesc = theDesc;
     mCurveDesc = &theDesc->mCurveDesc[mCurveNum];
 
-    mDangerPoint = mWayPointMgr->GetNumPoints() - mCurveDesc->mDangerDistance;
+    if (mEffectiveEndPoint <= 0 || mEffectiveEndPoint > mWayPointMgr->GetEndPoint())
+    {
+        mEffectiveEndPoint = mWayPointMgr->GetEndPoint();
+        mEffectiveEndPointF = (float)mEffectiveEndPoint;
+    }
+    RecalcDangerPoint();
+}
 
-    if (mDangerPoint >= mWayPointMgr->GetNumPoints())
-        mDangerPoint = mWayPointMgr->GetEndPoint();
+int CurveMgr::GetEffectiveEndPoint() const
+{
+    if (!mApp->mMovingHoleMode)
+        return mWayPointMgr->GetEndPoint();
+
+    int end = mEffectiveEndPoint;
+    int realEnd = mWayPointMgr->GetEndPoint();
+    if (end < 0)
+        end = 0;
+    if (end > realEnd)
+        end = realEnd;
+    return end;
+}
+
+void CurveMgr::RecalcDangerPoint()
+{
+    int end = GetEffectiveEndPoint();
+    mDangerPoint = end - mCurveDesc->mDangerDistance;
+    if (mDangerPoint < 0)
+        mDangerPoint = 0;
+    if (mDangerPoint > end)
+        mDangerPoint = end;
+}
+
+float CurveMgr::GetHoleFacingRotation(int thePoint) const
+{
+    const WayPointList &pts = mWayPointMgr->GetWayPointList();
+    if (pts.empty())
+        return 0.0f;
+
+    int p1Idx = thePoint;
+    if (p1Idx < 0)
+        p1Idx = 0;
+    if (p1Idx >= (int)pts.size())
+        p1Idx = (int)pts.size() - 1;
+
+    // Same convention as CalcPerpendicular at the true end: look toward the path start
+    // so the hole faces the approaching chain (not flipped 180° mid-path).
+    int p2Idx = p1Idx - 1;
+    if (p2Idx < 0)
+        p2Idx = p1Idx + 1;
+    if (p2Idx >= (int)pts.size())
+        p2Idx = p1Idx;
+
+    const WayPoint &p1 = pts[p1Idx];
+    const WayPoint &p2 = pts[p2Idx];
+
+    SexyVector3 perp(p2.y - p1.y, p1.x - p2.x, 0.0f);
+    perp = perp.Normalize();
+    SexyVector3 v1(1, 0, 0);
+    float rot = acosf(perp.Dot(v1));
+    if (perp.y > 0.0f)
+        rot = -rot;
+    if (rot < 0.0f)
+        rot += 2 * SEXY_PI;
+    return rot;
+}
+
+void CurveMgr::UpdateHoleAtEffectiveEnd()
+{
+    if (!mApp->mMovingHoleMode)
+        return;
+
+    if (mSpriteMgr == NULL || mWayPointMgr->GetWayPointList().empty())
+        return;
+
+    const WayPointList &pts = mWayPointMgr->GetWayPointList();
+    float wp = mEffectiveEndPointF;
+    if (wp < 0.0f)
+        wp = 0.0f;
+    if (wp > (float)mWayPointMgr->GetEndPoint())
+        wp = (float)mWayPointMgr->GetEndPoint();
+
+    int i0 = (int)wp;
+    if (i0 < 0)
+        i0 = 0;
+    if (i0 >= (int)pts.size())
+        i0 = (int)pts.size() - 1;
+
+    int i1 = i0 + 1;
+    if (i1 >= (int)pts.size())
+        i1 = i0;
+
+    float t = wp - (float)i0;
+    if (i0 == i1)
+        t = 0.0f;
+
+    float x = pts[i0].x + (pts[i1].x - pts[i0].x) * t;
+    float y = pts[i0].y + (pts[i1].y - pts[i0].y) * t;
+
+    float r0 = GetHoleFacingRotation(i0) + mHoleRotationOffset;
+    float r1 = GetHoleFacingRotation(i1) + mHoleRotationOffset;
+    while (r1 - r0 > SEXY_PI)
+        r1 -= 2 * SEXY_PI;
+    while (r1 - r0 < -SEXY_PI)
+        r1 += 2 * SEXY_PI;
+
+    float rot = r0 + (r1 - r0) * t;
+    while (rot < 0.0f)
+        rot += 2 * SEXY_PI;
+    while (rot > 2 * SEXY_PI)
+        rot -= 2 * SEXY_PI;
+
+    mSpriteMgr->MoveHole(mCurveNum, (int)(x + 0.5f), (int)(y + 0.5f), rot);
+}
+
+int CurveMgr::GetMovingHoleMinEnd() const
+{
+    int realEnd = mWayPointMgr->GetEndPoint();
+    // Keep at least ~15% of the path so the level stays playable for a while.
+    int minEnd = realEnd / 7;
+    if (minEnd < 50)
+        minEnd = 50;
+    if (minEnd > realEnd)
+        minEnd = realEnd;
+    return minEnd;
+}
+
+int CurveMgr::GetMovingHoleStepSize() const
+{
+    int realEnd = mWayPointMgr->GetEndPoint();
+    // ~3% of the full path per interval (at least 25 waypoints).
+    int step = realEnd / 33;
+    if (step < 25)
+        step = 25;
+    return step;
+}
+
+bool CurveMgr::HasHoleCaughtLeadBall() const
+{
+    if (!mApp->mMovingHoleMode || mBallList.empty())
+        return false;
+
+    return mBallList.back()->GetWayPoint() >= (float)GetEffectiveEndPoint();
+}
+
+void CurveMgr::UpdateMovingHole()
+{
+    if (!mApp->mMovingHoleMode)
+        return;
+
+    if (mBoard->mGameState != GameState_Playing)
+        return;
+
+    int speedLevel = mApp->mMovingHoleSpeed;
+    if (speedLevel <= 0)
+        return;
+
+    int minEnd = GetMovingHoleMinEnd();
+    if (mEffectiveEndPointF <= (float)minEnd)
+    {
+        mEffectiveEndPointF = (float)minEnd;
+        mEffectiveEndPoint = minEnd;
+        return;
+    }
+
+    if (speedLevel > 100)
+        speedLevel = 100;
+
+    // Speed 100 covers one stepSize in ~1.0s (10x slower than the prior 0.1s mapping).
+    // Board updates ~100 times per second → max = stepSize / 100 waypoints per update.
+    float maxSpeed = (float)GetMovingHoleStepSize() * 2 / 100.0f;
+    float speed = maxSpeed * ((float)speedLevel / 100.0f);
+    mEffectiveEndPointF -= speed;
+    if (mEffectiveEndPointF < (float)minEnd)
+        mEffectiveEndPointF = (float)minEnd;
+
+    // If the hole catches the lead ball, snap to it and lose immediately —
+    // don't keep crawling through the chain while bullets delay CheckEndConditions.
+    if (!mBallList.empty())
+    {
+        float leadWP = mBallList.back()->GetWayPoint();
+        if (mEffectiveEndPointF <= leadWP)
+        {
+            mEffectiveEndPointF = leadWP;
+            mEffectiveEndPoint = (int)(leadWP + 0.5f);
+            if (mEffectiveEndPoint < minEnd)
+                mEffectiveEndPoint = minEnd;
+            RecalcDangerPoint();
+            UpdateHoleAtEffectiveEnd();
+            mInDanger = true;
+            // Lose is applied in Board::CheckEndConditions (HasHoleCaughtLeadBall)
+            // so we don't double-call SetLosing in the same frame.
+            return;
+        }
+    }
+
+    int newEnd = (int)(mEffectiveEndPointF + 0.5f);
+    if (newEnd < minEnd)
+        newEnd = minEnd;
+
+    if (newEnd != mEffectiveEndPoint)
+    {
+        mEffectiveEndPoint = newEnd;
+        RecalcDangerPoint();
+
+        if (!mBallList.empty())
+            mInDanger = mBallList.back()->GetWayPoint() >= mDangerPoint;
+    }
+
+    UpdateHoleAtEffectiveEnd();
 }
 
 void MakeCombo(BallList &theList, int theNumBalls, int theComboSize, int theNumColors)
@@ -222,7 +432,7 @@ void CurveMgr::StartLevel()
     if (aNumBalls == 0)
         aNumBalls = 10;
 
-    if (mBoard->mApp->mProfile->mMaxLevel < 2 && mLevelDesc->mStage < 1)
+    if (mBoard->mApp->mProfile->mMaxLevel < 2 && mLevelDesc->mStage < 1 && !mApp->mUglyChainMode)
     {
         MakeCombo(mPendingBalls, 0, 2, mCurveDesc->mNumColors);
         MakeCombo(mPendingBalls, 0, 2, mCurveDesc->mNumColors);
@@ -244,6 +454,11 @@ void CurveMgr::StartLevel()
     mInDanger = false;
     mFirstChainEnd = 0;
     mFirstBallMovedBackwards = false;
+
+    mEffectiveEndPoint = mWayPointMgr->GetEndPoint();
+    mEffectiveEndPointF = (float)mEffectiveEndPoint;
+    RecalcDangerPoint();
+    UpdateHoleAtEffectiveEnd();
 
     RollBallsIn();
 }
@@ -279,6 +494,9 @@ void CurveMgr::UpdatePlaying()
             mBackwardCount = 0;
     }
 
+    // Move the hole before advance/danger so sparkles + danger music use the new end.
+    UpdateMovingHole();
+
     AddBall();
     UpdateBallRotation();
     AdvanceBullets();
@@ -302,7 +520,7 @@ void CurveMgr::UpdatePlaying()
 void CurveMgr::UpdateLosing()
 {
     BallList::iterator aBallItr = mBallList.begin();
-    float anEndPoint = mWayPointMgr->GetEndPoint();
+    float anEndPoint = (float)GetEffectiveEndPoint();
     bool isDirty = false;
 
     while (aBallItr != mBallList.end())
@@ -547,7 +765,7 @@ bool CurveMgr::IsLosing()
 {
     if (mHaveSets ||
         mBallList.empty() ||
-        mWayPointMgr->GetEndPoint() > mBallList.back()->GetWayPoint() ||
+        GetEffectiveEndPoint() > mBallList.back()->GetWayPoint() ||
         !mBulletList.empty() ||
         mBackwardCount > 0)
     {
@@ -583,7 +801,7 @@ bool CurveMgr::CanFire()
     if (mBallList.empty())
         return true;
 
-    return mBallList.back()->GetWayPoint() < mWayPointMgr->GetEndPoint();
+    return mBallList.back()->GetWayPoint() < GetEffectiveEndPoint();
 }
 
 Ball *CurveMgr::CheckBallIntersection(const SexyVector3 &p1, const SexyVector3 &v1, float &t)
@@ -759,8 +977,11 @@ int CurveMgr::GetFarthestBallPercent()
         return 0;
 
     float aWayPoint = mBallList.back()->GetWayPoint();
+    int end = GetEffectiveEndPoint();
+    if (end <= 0)
+        return 0;
 
-    return (int)(aWayPoint * 100.0f / (float)mWayPointMgr->GetNumPoints());
+    return (int)(aWayPoint * 100.0f / (float)end);
 }
 
 int CurveMgr::DrawPathSparkles(int theStartPoint, int theStagger, bool addSound)
@@ -770,7 +991,7 @@ int CurveMgr::DrawPathSparkles(int theStartPoint, int theStagger, bool addSound)
     int aPathHilitePitch = forwardPitch ? 0 : -20;
     int aSoundCtr = 0;
 
-    while (aPathHiliteWP < mWayPointMgr->GetNumPoints())
+    while (aPathHiliteWP <= GetEffectiveEndPoint())
     {
         int aSparkleX, aSparkleY, aSparklePriority;
 
@@ -810,11 +1031,16 @@ int CurveMgr::DrawEndLevelBonus(int theStagger)
 {
     FloatingTextHelper aFloat;
 
-    int aNumPoints = mWayPointMgr->GetNumPoints();
-    int aPoint = mLastClearedBallPoint + (aNumPoints - mLastClearedBallPoint) % 60;
+    int aEndPoint = GetEffectiveEndPoint();
+    int aPoint = mLastClearedBallPoint;
+    if (aEndPoint > aPoint)
+        aPoint += (aEndPoint - aPoint) % 60;
+    if (aPoint > aEndPoint)
+        aPoint = aEndPoint;
+
     int aStagger = theStagger;
 
-    while (aPoint <= aNumPoints)
+    while (aPoint <= aEndPoint)
     {
         int aExplodeX, aExplodeY, aExplodePriority;
         GetPoint(aPoint, aExplodeX, aExplodeY, aExplodePriority);
@@ -835,7 +1061,12 @@ int CurveMgr::DrawEndLevelBonus(int theStagger)
         aFloat.AddText(Sexy::StrFormat("+%d", 100), Sexy::FONT_FLOAT_ID, 0xFFFF00);
         aFloat.AddToMgr(mBoard->mParticleMgr, aExplodeX, aExplodeY, aStagger + 10, 100);
 
+        if (aPoint >= aEndPoint)
+            break;
+
         aPoint += 60;
+        if (aPoint > aEndPoint)
+            aPoint = aEndPoint;
         aStagger += 4;
     }
 
@@ -985,9 +1216,12 @@ void CurveMgr::SetFarthestBall(int thePoint)
     if (aLastPoint < 0)
         aLastPoint = 0;
 
+    int anEnd = GetEffectiveEndPoint();
     float aPercentOpen = 0.0f;
-    if (aLastPoint <= thePoint)
-        aPercentOpen = (float)(thePoint - aLastPoint) / (float)(mWayPointMgr->GetNumPoints() - aLastPoint);
+    if (aLastPoint < anEnd && aLastPoint <= thePoint)
+        aPercentOpen = (float)(thePoint - aLastPoint) / (float)(anEnd - aLastPoint);
+    if (aPercentOpen > 1.0f)
+        aPercentOpen = 1.0f;
 
     mSpriteMgr->UpdateHole(mCurveNum, aPercentOpen);
 }
@@ -1311,7 +1545,21 @@ void CurveMgr::AddPendingBall()
     }
 
     int aMaxSingle = mCurveDesc->mMaxSingle;
-    if (Sexy::AppRand() % 100 <= mCurveDesc->mBallRepeat)
+    if (mApp->mUglyChainMode)
+    {
+        // Pick uniformly from colors other than the neighbor.
+        if (aNumColors <= 1)
+        {
+            aNewColor = 0;
+        }
+        else
+        {
+            aNewColor = Sexy::AppRand() % (aNumColors - 1);
+            if (aNewColor >= aPrevColor)
+                aNewColor++;
+        }
+    }
+    else if (Sexy::AppRand() % 100 <= mCurveDesc->mBallRepeat)
     {
         aNewColor = aPrevColor;
     }
@@ -1505,7 +1753,11 @@ void CurveMgr::AdvanceBalls()
     if (mFirstChainEnd >= mDangerPoint)
     {
         int aTick = Sexy::BoardGetTickCount();
-        int aMaxTime = 100 + 4000 * (GetCurveLength() - mFirstChainEnd) / (GetCurveLength() - mDangerPoint);
+        int end = GetEffectiveEndPoint();
+        int aDenom = end - mDangerPoint;
+        if (aDenom < 1)
+            aDenom = 1;
+        int aMaxTime = 100 + 4000 * (end - mFirstChainEnd) / aDenom;
         int aFrame = mBoard->GetStateCount();
 
         if (aFrame >= mPathLightEndFrame && aTick - mLastPathShowTick >= aMaxTime)
@@ -1873,9 +2125,31 @@ void CurveMgr::AdvanceMergingBullet(BulletList::iterator &theBulletItr)
         }
 
         mBoard->mNumClearsInARow++;
-        bool didClear = CheckSet(aNewBall);
 
-        if (didClear && mApp->IsColorBanned(aNewBall->GetType()))
+        Ball *aRowNextEnd = NULL;
+        Ball *aRowPrevEnd = NULL;
+        int aRowCount = GetNumInARow(aNewBall, aNewBall->GetType(), &aRowNextEnd, &aRowPrevEnd);
+
+        bool didClear = CheckSet(aNewBall);
+        bool matchOfThreeOrMore = didClear;
+
+        if (mApp->mBomberMode && aRowCount > 2)
+        {
+            int aTicks = Sexy::BoardGetTickCount();
+            if (aTicks - mBoard->mLastExplosionTick > 250)
+            {
+                mBoard->mLastExplosionTick = aTicks;
+                mApp->PlaySample(Sexy::SOUND_EXPLODE);
+            }
+
+            for (int i = 0; i < mBoard->mNumCurves; i++)
+                mBoard->mCurveMgr[i]->ActivateBomb(aNewBall);
+
+            didClear = true;
+        }
+
+        // Colors ban only applies to normal 3+ matches, not bomber-only 3-ball blasts.
+        if (matchOfThreeOrMore && mApp->IsColorBanned(aNewBall->GetType()))
         {
             mBoard->SetLosing();
             return;

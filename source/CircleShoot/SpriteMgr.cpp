@@ -584,6 +584,27 @@ void SpriteMgr::PlaceHole(int theCurveNum, int theX, int theY, float theRotation
     mHoleMappings[theCurveNum] = i;
 }
 
+void SpriteMgr::MoveHole(int theCurveNum, int theX, int theY, float theRotation)
+{
+    if (theCurveNum < 0 || theCurveNum >= 3)
+        return;
+
+    int holeIdx = mHoleMappings[theCurveNum];
+    if (holeIdx < 0 || holeIdx >= mNumHoles)
+        return;
+
+    while (theRotation < 0.0)
+        theRotation += SEXY_PI * 2;
+
+    while (theRotation > SEXY_PI * 2)
+        theRotation -= SEXY_PI * 2;
+
+    HoleInfo &aHole = mHoleInfo[holeIdx];
+    aHole.mx = theX - Sexy::IMAGE_HOLE->mWidth / 2;
+    aHole.my = theY - Sexy::IMAGE_HOLE->mHeight / 2;
+    aHole.mRotation = theRotation;
+}
+
 void SpriteMgr::ClearHoleFlashes()
 {
     mHoleFlashList.clear();

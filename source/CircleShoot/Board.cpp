@@ -426,11 +426,38 @@ void Board::DoLevelUp(bool playSounds, bool isCheat)
 
 void Board::CheckEndConditions()
 {
-    if (!mBulletList.empty() || mGun->IsFiring())
+    if (mGameState != GameState_Playing)
         return;
 
     int i;
     int mNumCurves = this->mNumCurves;
+
+    // Danger music must update even while bullets are in flight / gun is firing.
+    // Otherwise moving-hole danger (and frantic shooting near the hole) never switches the track.
+    for (i = 0; i < mNumCurves; i++)
+    {
+        if (mCurveMgr[i]->IsInDanger())
+            break;
+    }
+    mApp->SwitchSong((i == mNumCurves) ? 0 : 36);
+
+    // Moving hole can reach the chain while shots are still in the air.
+    // Don't wait for a quiet frame or the hole keeps eating balls.
+    if (mApp->mMovingHoleMode)
+    {
+        for (i = 0; i < mNumCurves; i++)
+        {
+            if (mCurveMgr[i]->HasHoleCaughtLeadBall())
+            {
+                SetLosing();
+                return;
+            }
+        }
+    }
+
+    if (!mBulletList.empty() || mGun->IsFiring())
+        return;
+
     for (i = 0; i < mNumCurves; i++)
     {
         if (!mCurveMgr[i]->IsWinning())
@@ -458,15 +485,6 @@ void Board::CheckEndConditions()
         SetLosing();
         return;
     }
-
-    i = 0;
-    for (i = 0; i < mNumCurves; i++)
-    {
-        if (mCurveMgr[i]->IsInDanger())
-            break;
-    }
-
-    mApp->SwitchSong((i == mNumCurves) ? 0 : 36);
 }
 
 void Board::SyncPracticeMode()
@@ -749,7 +767,7 @@ void Board::CheckReload()
         for (int i = 0; i < rand; i++)
             it++;
 
-        mGun->Reload(it->first, false, Sexy::PowerType_Max);
+        mGun->Reload(it->first, !GetCircleShootApp()->mMachineGunMode, Sexy::PowerType_Max);
     }
 }
 

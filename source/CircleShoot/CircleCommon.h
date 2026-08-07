@@ -78,6 +78,7 @@ namespace Sexy
         DialogType_Unpowered = 25,
         DialogType_Sonic = 26,
         DialogType_ModeHelp = 27,
+        DialogType_MovingHole = 28,
         DialogType_Max,
     };
 
