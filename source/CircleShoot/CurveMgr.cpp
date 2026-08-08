@@ -1162,7 +1162,11 @@ int CurveMgr::DrawEndLevelBonus(int theStagger)
 
 bool CurveMgr::HasReachedCruisingSpeed()
 {
-    return (mAdvanceSpeed - mCurveDesc->mSpeed) < 0.1f;
+    // Compare against the effective cruising speed (Sonic multiplier included).
+    // Using the unscaled curve speed left the roll-in loop running until the
+    // 500-frame timeout whenever Sonic made the real cruise speed higher.
+    float aCruisingSpeed = mCurveDesc->mSpeed * mApp->GetChainSpeedMultiplier();
+    return (mAdvanceSpeed - aCruisingSpeed) < 0.1f;
 }
 
 void CurveMgr::AddPowerUp(PowerType thePower)
@@ -2426,7 +2430,8 @@ void CurveMgr::ClearPendingSucks(Ball *theEndBall)
 
 void CurveMgr::RollBallsIn()
 {
-    float aSpeed = mCurveDesc->mSpeed * mApp->GetChainSpeedMultiplier();
+    float aBaseSpeed = mCurveDesc->mSpeed;
+    float aSpeed = aBaseSpeed * mApp->GetChainSpeedMultiplier();
     int aStartDistance = 50;
     if (!mBoard->mIsEndless)
     {
@@ -2438,7 +2443,16 @@ void CurveMgr::RollBallsIn()
 
     if (mFirstChainEnd <= 0 || aWayPoint > 0.0f)
     {
-        mAdvanceSpeed = aSpeed + ((sqrtf(((aSpeed + 20.0f) * (aSpeed + 20.0f)) + ((aWayPoint * -20.0f) * -4.0f)) - (aSpeed + 20.0f)) * 0.5f + 18.0f) * 0.1f;
+        // Compute the roll-in boost from the unscaled base speed so Sonic doesn't
+        // stretch the spawn/roll-in sound; then apply that same boost above cruise.
+        float aBoostedBase =
+            aBaseSpeed +
+            ((sqrtf(((aBaseSpeed + 20.0f) * (aBaseSpeed + 20.0f)) + ((aWayPoint * -20.0f) * -4.0f)) -
+              (aBaseSpeed + 20.0f)) *
+                 0.5f +
+             18.0f) *
+                0.1f;
+        mAdvanceSpeed = aSpeed + (aBoostedBase - aBaseSpeed);
     }
     else
     {
