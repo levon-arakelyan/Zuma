@@ -524,7 +524,7 @@ void SpriteMgr::UpdateHoleBrightness(int theCurveNum, int theBrightness)
 {
 }
 
-void SpriteMgr::PlaceHole(int theCurveNum, int theX, int theY, float theRotation)
+void SpriteMgr::PlaceHole(int theCurveNum, int theX, int theY, float theRotation, int thePriority)
 {
     int aCornerX = theX - Sexy::IMAGE_HOLE->mWidth / 2;
     int aCornerY = theY - Sexy::IMAGE_HOLE->mHeight / 2;
@@ -550,6 +550,11 @@ void SpriteMgr::PlaceHole(int theCurveNum, int theX, int theY, float theRotation
     if (fabs(theRotation - SEXY_PI * 2) < 0.2)
         theRotation = 0.0;
 
+    if (thePriority < 0)
+        thePriority = 0;
+    if (thePriority >= MAX_PRIORITY)
+        thePriority = MAX_PRIORITY - 1;
+
     int i;
     for (i = 0; i < mNumHoles; i++)
     {
@@ -571,6 +576,7 @@ void SpriteMgr::PlaceHole(int theCurveNum, int theX, int theY, float theRotation
         aHole.mTotalBrightness = 0;
         aHole.mImageFrame = -1;
         aHole.mRotation = theRotation;
+        aHole.mDrawPriority = thePriority;
 
         for (int j = 0; j < 3; j++)
         {
@@ -580,11 +586,15 @@ void SpriteMgr::PlaceHole(int theCurveNum, int theX, int theY, float theRotation
 
         mNumHoles++;
     }
+    else
+    {
+        mHoleInfo[i].mDrawPriority = thePriority;
+    }
 
     mHoleMappings[theCurveNum] = i;
 }
 
-void SpriteMgr::MoveHole(int theCurveNum, int theX, int theY, float theRotation)
+void SpriteMgr::MoveHole(int theCurveNum, int theX, int theY, float theRotation, int thePriority)
 {
     if (theCurveNum < 0 || theCurveNum >= 3)
         return;
@@ -593,16 +603,26 @@ void SpriteMgr::MoveHole(int theCurveNum, int theX, int theY, float theRotation)
     if (holeIdx < 0 || holeIdx >= mNumHoles)
         return;
 
+    // NaN/Inf would infinite-loop in the angle wrap below.
+    if (!(theRotation >= -1000.0f && theRotation <= 1000.0f))
+        theRotation = 0.0f;
+
     while (theRotation < 0.0)
         theRotation += SEXY_PI * 2;
 
     while (theRotation > SEXY_PI * 2)
         theRotation -= SEXY_PI * 2;
 
+    if (thePriority < 0)
+        thePriority = 0;
+    if (thePriority >= MAX_PRIORITY)
+        thePriority = MAX_PRIORITY - 1;
+
     HoleInfo &aHole = mHoleInfo[holeIdx];
     aHole.mx = theX - Sexy::IMAGE_HOLE->mWidth / 2;
     aHole.my = theY - Sexy::IMAGE_HOLE->mHeight / 2;
     aHole.mRotation = theRotation;
+    aHole.mDrawPriority = thePriority;
 }
 
 void SpriteMgr::ClearHoleFlashes()
@@ -708,6 +728,38 @@ void SpriteMgr::UpdateBackgroundTransition(int theStep)
     }
 }
 
+void SpriteMgr::DrawHoles(Graphics *g)
+{
+    for (int i = 0; i < mNumHoles; i++)
+        DrawHoleWithFlash(g, i);
+}
+
+void SpriteMgr::DrawHoles(Graphics *g, int thePriority)
+{
+    for (int i = 0; i < mNumHoles; i++)
+    {
+        if (mHoleInfo[i].mDrawPriority == thePriority)
+            DrawHoleWithFlash(g, i);
+    }
+}
+
+void SpriteMgr::DrawHoleWithFlash(Graphics *g, int theHoleNum)
+{
+    DrawHole(g, theHoleNum);
+
+    if (mHoleInfo[theHoleNum].mTotalBrightness > 0)
+    {
+        g->SetDrawMode(Graphics::DRAWMODE_ADDITIVE);
+        g->SetColorizeImages(true);
+
+        g->SetColor(Sexy::Color(mHoleInfo[theHoleNum].mTotalBrightness, mHoleInfo[theHoleNum].mTotalBrightness, mHoleInfo[theHoleNum].mTotalBrightness));
+        DrawHole(g, theHoleNum);
+
+        g->SetColorizeImages(false);
+        g->SetDrawMode(Graphics::DRAWMODE_NORMAL);
+    }
+}
+
 void SpriteMgr::DrawBackground(Graphics *g)
 {
     if (mInSpace)
@@ -719,27 +771,17 @@ void SpriteMgr::DrawBackground(Graphics *g)
         g->DrawImage(mBackgroundImage, 0, 0);
     }
 
-    for (int i = 0; i < mNumHoles; i++)
-    {
-        DrawHole(g, i);
-
-        if (mHoleInfo[i].mTotalBrightness > 0)
-        {
-            g->SetDrawMode(Graphics::DRAWMODE_ADDITIVE);
-            g->SetColorizeImages(true);
-
-            g->SetColor(Sexy::Color(mHoleInfo[i].mTotalBrightness, mHoleInfo[i].mTotalBrightness, mHoleInfo[i].mTotalBrightness));
-            DrawHole(g, i);
-
-            g->SetColorizeImages(false);
-            g->SetDrawMode(Graphics::DRAWMODE_NORMAL);
-        }
-    }
+    // Moving-hole mode draws holes inside the priority loop (with balls) so path
+    // masks still layer correctly; stationary holes stay on the background.
+    if (!GetCircleShootApp()->mMovingHoleMode)
+        DrawHoles(g);
 }
 
 void SpriteMgr::DrawLevel(Graphics *g)
 {
     DrawBackground(g);
+    if (GetCircleShootApp()->mMovingHoleMode)
+        DrawHoles(g);
 }
 
 void SpriteMgr::DrawSprites(Graphics *g, int thePriority)

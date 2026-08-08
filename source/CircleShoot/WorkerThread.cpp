@@ -27,7 +27,9 @@ WorkerThread::~WorkerThread()
 
 void WorkerThread::WaitForTask()
 {
-	if (mTaskProc)
+	// Keep waiting until the worker actually finishes. A single 1s timeout
+	// allowed LoadGame/SyncState to race SetupLevel and freeze the UI.
+	while (mTaskProc != NULL)
 	{
 		WaitForSingleObject(mUnk2, 1000);
 	}

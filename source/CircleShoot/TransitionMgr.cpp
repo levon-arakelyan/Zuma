@@ -322,6 +322,8 @@ void TransitionMgr::DrawLevelBegin(Graphics *g)
     for (int i = 0; i < MAX_PRIORITY; i++)
     {
         mBoard->mSpriteMgr->DrawSprites(g, i);
+        if (GetCircleShootApp()->mMovingHoleMode)
+            mBoard->mSpriteMgr->DrawHoles(g, i);
         mBoard->mParticleMgr->Draw(g, i);
     }
 

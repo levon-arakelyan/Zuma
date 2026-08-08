@@ -48,6 +48,12 @@ void BallDrawer::Draw(Graphics *g, SpriteMgr *theSpriteMgr, ParticleMgr *thePart
     for (int i = 0; i < 5; i++)
     {
         theSpriteMgr->DrawSprites(g, i);
+
+        // Draw crawling holes in the same priority layer as balls on that path
+        // segment, so tunnel/mask overlays still correctly cover lower layers.
+        if (GetCircleShootApp()->mMovingHoleMode)
+            theSpriteMgr->DrawHoles(g, i);
+
         theParticleMgr->Draw(g, i);
 
         int aNumShadows = mNumShadows[i];
@@ -76,6 +82,7 @@ CurveMgr::CurveMgr(Board *theBoard)
     mEffectiveEndPoint = 0;
     mEffectiveEndPointF = 0.0f;
     mHoleRotationOffset = 0.0f;
+    mHoleCaughtLead = false;
 }
 
 CurveMgr::~CurveMgr()
@@ -131,7 +138,8 @@ void CurveMgr::SetupLevel(LevelDesc *theDesc, SpriteMgr *theSpriteMgr, int theCu
             aSkullRotation = aPoint.mRotation;
     }
 
-    mSpriteMgr->PlaceHole(mCurveNum, aHoleX, aHoleY, aSkullRotation);
+    mSpriteMgr->PlaceHole(mCurveNum, aHoleX, aHoleY, aSkullRotation,
+                          mWayPointMgr->GetPriority(mWayPointMgr->GetEndPoint()));
     mEffectiveEndPoint = mWayPointMgr->GetEndPoint();
     mEffectiveEndPointF = (float)mEffectiveEndPoint;
     // End-of-path CalcPerpendicular looks backward; mid-path looks forward (180° flip).
@@ -256,7 +264,8 @@ void CurveMgr::UpdateHoleAtEffectiveEnd()
     while (rot > 2 * SEXY_PI)
         rot -= 2 * SEXY_PI;
 
-    mSpriteMgr->MoveHole(mCurveNum, (int)(x + 0.5f), (int)(y + 0.5f), rot);
+    mSpriteMgr->MoveHole(mCurveNum, (int)(x + 0.5f), (int)(y + 0.5f), rot,
+                         mWayPointMgr->GetPriority(i0));
 }
 
 int CurveMgr::GetMovingHoleMinEnd() const
@@ -286,7 +295,12 @@ bool CurveMgr::HasHoleCaughtLeadBall() const
     if (!mApp->mMovingHoleMode || mBallList.empty())
         return false;
 
-    return mBallList.back()->GetWayPoint() >= (float)GetEffectiveEndPoint();
+    if (mHoleCaughtLead)
+        return true;
+
+    // Lose only when the hole reaches the lead ball's center (classic Zuma).
+    // Using the ball front/radius blocked shooting while still savable.
+    return mEffectiveEndPointF <= mBallList.back()->GetWayPoint();
 }
 
 void CurveMgr::UpdateMovingHole()
@@ -298,14 +312,62 @@ void CurveMgr::UpdateMovingHole()
         return;
 
     int speedLevel = mApp->mMovingHoleSpeed;
+    int minEnd = GetMovingHoleMinEnd();
+
+    if (!mBallList.empty())
+    {
+        float leadWP = mBallList.back()->GetWayPoint();
+
+        // Sticky catch: once centers meet, stay locked under the lead until lose —
+        // or until a clear/suck pulls the lead back behind the hole (saved).
+        if (mHoleCaughtLead)
+        {
+            if (leadWP < mEffectiveEndPointF)
+            {
+                mHoleCaughtLead = false;
+            }
+            else
+            {
+                mEffectiveEndPointF = leadWP;
+                mEffectiveEndPoint = (int)leadWP;
+                if (mEffectiveEndPoint < minEnd)
+                    mEffectiveEndPoint = minEnd;
+                RecalcDangerPoint();
+                UpdateHoleAtEffectiveEnd();
+                mInDanger = true;
+                return;
+            }
+        }
+    }
+    else
+    {
+        mHoleCaughtLead = false;
+    }
+
     if (speedLevel <= 0)
         return;
 
-    int minEnd = GetMovingHoleMinEnd();
     if (mEffectiveEndPointF <= (float)minEnd)
     {
         mEffectiveEndPointF = (float)minEnd;
         mEffectiveEndPoint = minEnd;
+
+        // Still lose if the chain has reached the parked hole.
+        if (!mBallList.empty())
+        {
+            float leadWP = mBallList.back()->GetWayPoint();
+            if (mEffectiveEndPointF <= leadWP)
+            {
+                mHoleCaughtLead = true;
+                mEffectiveEndPointF = leadWP;
+                mEffectiveEndPoint = (int)leadWP;
+                if (mEffectiveEndPoint < minEnd)
+                    mEffectiveEndPoint = minEnd;
+                RecalcDangerPoint();
+                UpdateHoleAtEffectiveEnd();
+                mInDanger = true;
+            }
+        }
         return;
     }
 
@@ -320,22 +382,21 @@ void CurveMgr::UpdateMovingHole()
     if (mEffectiveEndPointF < (float)minEnd)
         mEffectiveEndPointF = (float)minEnd;
 
-    // If the hole catches the lead ball, snap to it and lose immediately —
-    // don't keep crawling through the chain while bullets delay CheckEndConditions.
+    // If the hole reaches the lead ball center, snap under it and stop crawling
+    // through the chain. Lose waits for clears / sucks / in-flight shots.
     if (!mBallList.empty())
     {
         float leadWP = mBallList.back()->GetWayPoint();
         if (mEffectiveEndPointF <= leadWP)
         {
+            mHoleCaughtLead = true;
             mEffectiveEndPointF = leadWP;
-            mEffectiveEndPoint = (int)(leadWP + 0.5f);
+            mEffectiveEndPoint = (int)leadWP;
             if (mEffectiveEndPoint < minEnd)
                 mEffectiveEndPoint = minEnd;
             RecalcDangerPoint();
             UpdateHoleAtEffectiveEnd();
             mInDanger = true;
-            // Lose is applied in Board::CheckEndConditions (HasHoleCaughtLeadBall)
-            // so we don't double-call SetLosing in the same frame.
             return;
         }
     }
@@ -457,6 +518,7 @@ void CurveMgr::StartLevel()
 
     mEffectiveEndPoint = mWayPointMgr->GetEndPoint();
     mEffectiveEndPointF = (float)mEffectiveEndPoint;
+    mHoleCaughtLead = false;
     RecalcDangerPoint();
     UpdateHoleAtEffectiveEnd();
 
@@ -765,9 +827,26 @@ bool CurveMgr::IsLosing()
 {
     if (mHaveSets ||
         mBallList.empty() ||
-        GetEffectiveEndPoint() > mBallList.back()->GetWayPoint() ||
-        !mBulletList.empty() ||
         mBackwardCount > 0)
+    {
+        return false;
+    }
+
+    // A clear may have just started this frame (clearCount set, mHaveSets not
+    // updated yet if called mid-update). Never lose while head balls are clearing.
+    Ball *aLead = mBallList.back();
+    if (aLead->GetClearCount() > 0)
+        return false;
+
+    if (mApp->mMovingHoleMode)
+    {
+        // Once the hole is on the lead, merging bullets further back must not
+        // freeze lose — only clears/sucks and in-flight board shots can save.
+        if (!HasHoleCaughtLeadBall())
+            return false;
+    }
+    else if (GetEffectiveEndPoint() > mBallList.back()->GetWayPoint() ||
+             !mBulletList.empty())
     {
         return false;
     }
@@ -801,7 +880,10 @@ bool CurveMgr::CanFire()
     if (mBallList.empty())
         return true;
 
-    return mBallList.back()->GetWayPoint() < GetEffectiveEndPoint();
+    // Allow shooting until the lead center reaches the hole. Do not use the sticky
+    // catch flag here — near-miss overlap must still let the player save with a match.
+    float endWP = mApp->mMovingHoleMode ? mEffectiveEndPointF : (float)GetEffectiveEndPoint();
+    return mBallList.back()->GetWayPoint() < endWP;
 }
 
 Ball *CurveMgr::CheckBallIntersection(const SexyVector3 &p1, const SexyVector3 &v1, float &t)
@@ -1177,6 +1259,34 @@ void CurveMgr::SyncState(DataSync &theSync)
     theSync.SyncLong(mLastClearedBallPoint);
     theSync.SyncBool(mStopAddingBalls);
     theSync.SyncBool(mInDanger);
+    theSync.SyncLong(mEffectiveEndPoint);
+    theSync.SyncFloat(mEffectiveEndPointF);
+    theSync.SyncFloat(mHoleRotationOffset);
+    theSync.SyncBool(mHoleCaughtLead);
+
+    if (aReader)
+    {
+        int realEnd = mWayPointMgr->GetEndPoint();
+        if (realEnd < 0)
+            realEnd = 0;
+        if (mEffectiveEndPoint < 0)
+            mEffectiveEndPoint = 0;
+        if (mEffectiveEndPoint > realEnd)
+            mEffectiveEndPoint = realEnd;
+        if (mEffectiveEndPointF < 0.0f)
+            mEffectiveEndPointF = 0.0f;
+        if (mEffectiveEndPointF > (float)realEnd)
+            mEffectiveEndPointF = (float)realEnd;
+        RecalcDangerPoint();
+        // Hole sprite is restored after Board::LoadGame finishes waiting on the
+        // level-load worker — MoveHole here can race SetupLevel and freeze.
+    }
+}
+
+void CurveMgr::RestoreMovingHoleAfterLoad()
+{
+    RecalcDangerPoint();
+    UpdateHoleAtEffectiveEnd();
 }
 
 void CurveMgr::DeleteBullet(Bullet *theBullet)

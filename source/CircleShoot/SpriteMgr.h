@@ -61,10 +61,11 @@ protected:
 		int mFrame;
 		int mTotalBrightness;
 		float mRotation;
+		int mDrawPriority;
 		float mPercentOpen[3];
 		int mBrightness[3];
 
-		HoleInfo() : mImage(NULL) { }
+		HoleInfo() : mImage(NULL), mDrawPriority(0) { }
 		virtual ~HoleInfo();
 	};
 
@@ -82,6 +83,7 @@ protected:
 
 	void DrawSprites(Graphics *g, const SpriteList &theList);
 	void DrawSpace(Graphics *g);
+	void DrawHoleWithFlash(Graphics *g, int theHoleNum);
 	void GenerateTransitionSprite(MemoryImage *theBackgroundImage, MemoryImage *theAlpha, const SpriteDesc &theDesc);
 	void AddStar(int y);
 	void UpdateHoles();
@@ -106,13 +108,15 @@ public:
 	void DrawLevel(Graphics *g);
 	void DrawSprites(Graphics *g, int thePriority);
 	void DrawBorder(Graphics *g);
+	void DrawHoles(Graphics *g);
+	void DrawHoles(Graphics *g, int thePriority);
 	void DrawHole(Graphics *g, int theHoleNum);
 	void DrawHoleForCurve(Graphics *g, int theCurveNum);
 
 	void UpdateHole(int theCurveNum, float thePercentOpen);
 	void UpdateHoleBrightness(int theCurveNum, int theBrightness);
-	void PlaceHole(int theCurveNum, int theX, int theY, float theRotation);
-	void MoveHole(int theCurveNum, int theX, int theY, float theRotation);
+	void PlaceHole(int theCurveNum, int theX, int theY, float theRotation, int thePriority = 0);
+	void MoveHole(int theCurveNum, int theX, int theY, float theRotation, int thePriority = 0);
 	void ClearHoleFlashes();
 	void AddHoleFlash(int theCurveNum, int theStagger);
 	void Update();

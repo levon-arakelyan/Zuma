@@ -47,7 +47,7 @@ const char *Sexy::gSmallGauntletStages[] = {
     "JAG",
     "SG",
 };
-int Sexy::gSaveGameVersion = 5;
+int Sexy::gSaveGameVersion = 7;
 
 int Sexy::gMainThreadId = 0;
 

@@ -441,19 +441,9 @@ void Board::CheckEndConditions()
     }
     mApp->SwitchSong((i == mNumCurves) ? 0 : 36);
 
-    // Moving hole can reach the chain while shots are still in the air.
-    // Don't wait for a quiet frame or the hole keeps eating balls.
-    if (mApp->mMovingHoleMode)
-    {
-        for (i = 0; i < mNumCurves; i++)
-        {
-            if (mCurveMgr[i]->HasHoleCaughtLeadBall())
-            {
-                SetLosing();
-                return;
-            }
-        }
-    }
+    // Moving hole snaps to the lead when it reaches the chain (UpdateMovingHole) and
+    // does not crawl through balls while we wait. Lose still goes through IsLosing so
+    // in-flight shots, clears, and chain-reaction sucks can still save the player.
 
     if (!mBulletList.empty() || mGun->IsFiring())
         return;
@@ -2110,6 +2100,8 @@ void Board::SaveGame(const std::string &theFilePath)
     aWriter.WriteString(mVerboseLevelString);
     aWriter.WriteString(aLevelDesc->mDisplayName);
     aWriter.WriteLong(mScore);
+    aWriter.WriteBool(mApp->mMovingHoleMode);
+    aWriter.WriteLong(mApp->mMovingHoleSpeed);
     aWriter.WriteString(mPracticeBoard);
     aWriter.WriteShort(mLevel);
     aWriter.WriteBool(aDialog != NULL);
@@ -2147,6 +2139,7 @@ void Board::LoadGame(Buffer &theBuffer)
     int aUnkState = 0;
     aReader.OpenMemory(theBuffer.GetDataPtr(), theBuffer.GetDataLen(), false);
 
+    try
     {
         DataSync aDataSync(aReader);
         aUnkState = 2;
@@ -2160,6 +2153,21 @@ void Board::LoadGame(Buffer &theBuffer)
         aReader.ReadString(aLevelString);
         aReader.ReadString(aLevelString);
         int aScore = aReader.ReadLong();
+
+        // Modes must survive quit/continue or moving-hole state desyncs.
+        bool movingHoleMode = false;
+        int movingHoleSpeed = 20;
+        if (version >= 7)
+        {
+            movingHoleMode = aReader.ReadBool();
+            movingHoleSpeed = (int)aReader.ReadLong();
+            if (movingHoleSpeed < 0)
+                movingHoleSpeed = 0;
+            if (movingHoleSpeed > 100)
+                movingHoleSpeed = 100;
+            mApp->mMovingHoleMode = movingHoleMode;
+            mApp->mMovingHoleSpeed = movingHoleSpeed;
+        }
 
         aReader.ReadString(mPracticeBoard);
         mLevel = aReader.ReadShort();
@@ -2186,8 +2194,15 @@ void Board::LoadGame(Buffer &theBuffer)
                 SetupNextLevel(mLevel + 1, aNextLevelName.c_str());
             }
 
+            // Level geometry must be fully ready before SyncState touches curves/holes.
+            WaitForLoadingThread();
+
             SyncState(aDataSync);
             aDataSync.SyncPointers();
+
+            WaitForLoadingThread();
+            for (int i = 0; i < mNumCurves; i++)
+                mCurveMgr[i]->RestoreMovingHoleAfterLoad();
 
             if (mIsWinning && mLevelDesc->mStage < 13)
                 Reset(false);
@@ -2202,6 +2217,12 @@ void Board::LoadGame(Buffer &theBuffer)
         aUnkState = 1;
         mApp->ClearUpdateBacklog();
         aUnkState = 0;
+    }
+    catch (DataReaderException &)
+    {
+        // Corrupt / mismatched save — leave a playable board rather than a frozen UI.
+        mIsSavedGame = false;
+        mApp->ClearUpdateBacklog();
     }
 
     aUnkState = -1;

@@ -82,6 +82,7 @@ namespace Sexy
 		int mEffectiveEndPoint;
 		float mEffectiveEndPointF;
 		float mHoleRotationOffset;
+		bool mHoleCaughtLead;
 		int mPathLightEndFrame;
 		int mLastClearedBallPoint;
 		bool mHadPowerUp;
@@ -168,6 +169,7 @@ namespace Sexy
 		void AddPowerUp(PowerType thePower);
 
 		void SyncState(DataSync &theSync);
+		void RestoreMovingHoleAfterLoad();
 	};
 
 } // namespace Sexy
