@@ -73,6 +73,12 @@ namespace Sexy
         bool mMaxPowerMode;
         int mMaxPowerPercent; // 0-100% of spawned balls that get a power-up
         bool mMaxPowerQuietSounds;
+        bool mCombolessMode;
+        bool mGapFreeMode;
+        bool mChainCountMode;
+        int mChainBonusThreshold; // 1-20 clears before chain bonus
+        bool mChainBonusDisabled;
+        bool mBankruptMode;
 
         bool IsColorBanned(int theColor) const;
         bool IsPowerUpDisabled(int thePowerType) const;
@@ -126,6 +132,7 @@ namespace Sexy
         void DoSonicDialog();
         void DoMovingHoleDialog();
         void DoMaxPowerDialog();
+        void DoChainCountDialog();
         void DoModeHelpDialog(const std::string &theTitle, const std::string &theDescription);
         void DoConfirmContinueDialog(const std::string &theVerboseLevelString, const std::string &theDisplayName, int theScore);
         void DoGetReadyDialog();
@@ -151,6 +158,7 @@ namespace Sexy
         void FinishSonicDialog(bool apply);
         void FinishMovingHoleDialog(bool apply);
         void FinishMaxPowerDialog(bool apply);
+        void FinishChainCountDialog(bool apply);
         void FinishConfirmMainMenuDialog(bool mainMenu);
         void FinishStatsDialog(bool);
 

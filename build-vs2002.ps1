@@ -257,6 +257,31 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
+# MSVC7 + incremental Ninja can leave stale .obj files with old CircleShootApp /
+# ModesDialog layouts after header growth, which shows up as CRT "Buffer overrun"
+# on quit. Force a full CircleShoot recompile when those headers change.
+$layoutHeaders = @(
+    (Join-Path $PWD "source\CircleShoot\CircleShootApp.h"),
+    (Join-Path $PWD "source\CircleShoot\ModesDialog.h"),
+    (Join-Path $PWD "source\CircleShoot\CircleCommon.h")
+)
+$stampPath = Join-Path $PWD "build\circleshoot-layout.stamp"
+$layoutHash = ($layoutHeaders | Where-Object { Test-Path $_ } | ForEach-Object {
+    (Get-FileHash $_ -Algorithm MD5).Hash
+}) -join ""
+$prevHash = ""
+if (Test-Path $stampPath) {
+    $prevHash = (Get-Content $stampPath -Raw).Trim()
+}
+if ($layoutHash -ne $prevHash) {
+    Write-Host "CircleShoot layout headers changed; forcing full CircleShoot recompile..."
+    $objDir = Join-Path $PWD "build\source\CircleShoot\CMakeFiles\Zuma.dir"
+    if (Test-Path $objDir) {
+        Remove-Item (Join-Path $objDir "*.obj") -Force -ErrorAction SilentlyContinue
+    }
+    Set-Content -Path $stampPath -Value $layoutHash -NoNewline
+}
+
 Write-Host "Building project..."
 $buildArgs = @("--build", "build", "--config", "Release")
 

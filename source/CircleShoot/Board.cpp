@@ -874,6 +874,9 @@ void Board::UpdateTreasure()
 
     if (!gForceTreasure)
     {
+        if (GetCircleShootApp()->mBankruptMode)
+            return;
+
         if (mScore >= mScoreTarget)
             return;
 

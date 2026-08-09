@@ -26,8 +26,9 @@ namespace Sexy
     {
         enum GroupId
         {
-            Group_Limitations = 0,
-            Group_Imbalance,
+            Group_GameMechanics = 0,
+            Group_ForFun,
+            Group_Challenges,
             Group_Count
         };
 
@@ -42,6 +43,10 @@ namespace Sexy
             Mode_UglyChain,
             Mode_MovingHole,
             Mode_MaxPower,
+            Mode_Comboless,
+            Mode_GapFree,
+            Mode_ChainCount,
+            Mode_Bankrupt,
             Mode_Count
         };
     }
@@ -111,6 +116,10 @@ namespace Sexy
         bool IsUglyChainSelected() const;
         bool IsMovingHoleSelected() const;
         bool IsMaxPowerSelected() const;
+        bool IsCombolessSelected() const;
+        bool IsGapFreeSelected() const;
+        bool IsChainCountSelected() const;
+        bool IsBankruptSelected() const;
 
         void GetBannedColors(bool outBanned[MAX_BALL_COLORS]) const;
         void SetBannedColors(const bool banned[MAX_BALL_COLORS]);
@@ -134,6 +143,12 @@ namespace Sexy
         void SetMaxPowerQuietSounds(bool quiet);
         void SetMaxPowerSelected(bool selected);
 
+        int GetChainBonusThreshold() const;
+        void SetChainBonusThreshold(int threshold);
+        bool GetChainBonusDisabled() const;
+        void SetChainBonusDisabled(bool disabled);
+        void SetChainCountSelected(bool selected);
+
         void PrepareClose();
 
         // Named aliases kept for CircleShootApp / Finish* helpers
@@ -146,6 +161,10 @@ namespace Sexy
         Checkbox *mUglyChainCheckbox;
         Checkbox *mMovingHoleCheckbox;
         Checkbox *mMaxPowerCheckbox;
+        Checkbox *mCombolessCheckbox;
+        Checkbox *mGapFreeCheckbox;
+        Checkbox *mChainCountCheckbox;
+        Checkbox *mBankruptCheckbox;
 
         ModeWidgetSlot mModeSlots[ModesCatalog::Mode_Count];
 
@@ -161,6 +180,8 @@ namespace Sexy
         int mPendingMovingHoleSpeed;
         int mPendingMaxPowerPercent;
         bool mPendingMaxPowerQuietSounds;
+        int mPendingChainBonusThreshold;
+        bool mPendingChainBonusDisabled;
         int mHoveredHitId;
         int mSelectedGroupIndex;
         int mDividerX;

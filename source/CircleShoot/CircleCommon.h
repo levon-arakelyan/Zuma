@@ -80,6 +80,7 @@ namespace Sexy
         DialogType_ModeHelp = 27,
         DialogType_MovingHole = 28,
         DialogType_MaxPower = 29,
+        DialogType_ChainCount = 30,
         DialogType_Max,
     };
 

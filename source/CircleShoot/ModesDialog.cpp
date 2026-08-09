@@ -65,6 +65,14 @@ namespace ModesCatalog
         "The end hole crawls backward along the path at a speed you choose, so the chain has less and less distance before it falls in.";
     const char *const kMaxPowerDescription =
         "Choose what percent of balls on the chain spawn as power-ups. Optionally replace loud power-up sounds with regular destroy sounds.";
+    const char *const kCombolessDescription =
+        "Combos are disabled. Matching groups no longer suck together across gaps, and clears do not chain-react into further clears.";
+    const char *const kGapFreeDescription =
+        "Gap bonuses are disabled. Clearing through a gap awards normal points only.";
+    const char *const kChainCountDescription =
+        "Choose how many clears in a row are required before the chain bonus starts (1-20). Optionally disable the chain bonus entirely.";
+    const char *const kBankruptDescription =
+        "No coins appear. It never spawns during the level.";
 
     // --- Widget ids ---
     const int kGroupListId = 0;
@@ -79,8 +87,9 @@ namespace ModesCatalog
     };
 
     static const GroupDef kGroups[] = {
-        {Group_Limitations, "Masochist"},
-        {Group_Imbalance, "Imbalance"},
+        {Group_GameMechanics, "Game Mechanics"},
+        {Group_ForFun, "For Fun"},
+        {Group_Challenges, "Challenges"},
     };
     static const int kGroupCount = sizeof(kGroups) / sizeof(kGroups[0]);
 
@@ -95,15 +104,19 @@ namespace ModesCatalog
     };
 
     static const ModeDef kModes[] = {
-        {Mode_ColorsBan, Group_Limitations, "Colors ban", kColorsBanDescription, true},
-        {Mode_Unpowered, Group_Limitations, "Unpowered", kUnpoweredDescription, true},
-        {Mode_NoSwap, Group_Limitations, "No swap", kNoSwapDescription, false},
-        {Mode_Sonic, Group_Limitations, "Sonic", kSonicDescription, true},
-        {Mode_UglyChain, Group_Limitations, "Ugly chain", kUglyChainDescription, false},
-        {Mode_MovingHole, Group_Limitations, "Moving hole", kMovingHoleDescription, true},
-        {Mode_MachineGun, Group_Imbalance, "Machine gun", kMachineGunDescription, false},
-        {Mode_Bomber, Group_Imbalance, "Bomber", kBomberDescription, false},
-        {Mode_MaxPower, Group_Imbalance, "Max power", kMaxPowerDescription, true},
+        {Mode_ColorsBan, Group_Challenges, "Colors ban", kColorsBanDescription, true},
+        {Mode_MovingHole, Group_Challenges, "Moving hole", kMovingHoleDescription, true},
+        {Mode_Sonic, Group_Challenges, "Sonic speed", kSonicDescription, true},
+        {Mode_UglyChain, Group_Challenges, "Ugly chain", kUglyChainDescription, false},
+        {Mode_Unpowered, Group_GameMechanics, "Unpowered", kUnpoweredDescription, true},
+        {Mode_NoSwap, Group_GameMechanics, "No swap", kNoSwapDescription, false},
+        {Mode_Comboless, Group_GameMechanics, "Comboless", kCombolessDescription, false},
+        {Mode_GapFree, Group_GameMechanics, "Gap free", kGapFreeDescription, false},
+        {Mode_ChainCount, Group_GameMechanics, "Chain count", kChainCountDescription, true},
+        {Mode_Bankrupt, Group_GameMechanics, "Bankrupt", kBankruptDescription, false},
+        {Mode_MachineGun, Group_ForFun, "Machine gun", kMachineGunDescription, false},
+        {Mode_Bomber, Group_ForFun, "Bomber", kBomberDescription, false},
+        {Mode_MaxPower, Group_ForFun, "Max power", kMaxPowerDescription, true},
     };
     static const int kModeCount = sizeof(kModes) / sizeof(kModes[0]);
 
@@ -274,6 +287,10 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
     mUglyChainCheckbox = mModeSlots[ModesCatalog::Mode_UglyChain].mCheckbox;
     mMovingHoleCheckbox = mModeSlots[ModesCatalog::Mode_MovingHole].mCheckbox;
     mMaxPowerCheckbox = mModeSlots[ModesCatalog::Mode_MaxPower].mCheckbox;
+    mCombolessCheckbox = mModeSlots[ModesCatalog::Mode_Comboless].mCheckbox;
+    mGapFreeCheckbox = mModeSlots[ModesCatalog::Mode_GapFree].mCheckbox;
+    mChainCountCheckbox = mModeSlots[ModesCatalog::Mode_ChainCount].mCheckbox;
+    mBankruptCheckbox = mModeSlots[ModesCatalog::Mode_Bankrupt].mCheckbox;
 
     CircleShootApp *app = GetCircleShootApp();
     if (mColorsBanCheckbox != NULL)
@@ -294,6 +311,14 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
         mMovingHoleCheckbox->mChecked = app->mMovingHoleMode;
     if (mMaxPowerCheckbox != NULL)
         mMaxPowerCheckbox->mChecked = app->mMaxPowerMode;
+    if (mCombolessCheckbox != NULL)
+        mCombolessCheckbox->mChecked = app->mCombolessMode;
+    if (mGapFreeCheckbox != NULL)
+        mGapFreeCheckbox->mChecked = app->mGapFreeMode;
+    if (mChainCountCheckbox != NULL)
+        mChainCountCheckbox->mChecked = app->mChainCountMode;
+    if (mBankruptCheckbox != NULL)
+        mBankruptCheckbox->mChecked = app->mBankruptMode;
 
     for (int i = 0; i < MAX_BALL_COLORS; i++)
         mPendingBannedColors[i] = app->mBannedColors[i];
@@ -303,6 +328,10 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
     mPendingMovingHoleSpeed = app->mMovingHoleSpeed;
     mPendingMaxPowerPercent = app->mMaxPowerPercent;
     mPendingMaxPowerQuietSounds = app->mMaxPowerQuietSounds;
+    mPendingChainBonusThreshold = app->mChainBonusThreshold;
+    if (mPendingChainBonusThreshold < 1 || mPendingChainBonusThreshold > 20)
+        mPendingChainBonusThreshold = 5;
+    mPendingChainBonusDisabled = app->mChainBonusDisabled;
 
     for (int i = 0; i < ModesCatalog::kGroupCount; i++)
         mGroupList->AddLine(ModesCatalog::kGroups[i].name, false);
@@ -331,6 +360,10 @@ ModesDialog::~ModesDialog()
     mUglyChainCheckbox = NULL;
     mMovingHoleCheckbox = NULL;
     mMaxPowerCheckbox = NULL;
+    mCombolessCheckbox = NULL;
+    mGapFreeCheckbox = NULL;
+    mChainCountCheckbox = NULL;
+    mBankruptCheckbox = NULL;
 
     delete mModesPane;
     mModesPane = NULL;
@@ -382,6 +415,10 @@ void ModesDialog::PrepareClose()
     mUglyChainCheckbox = NULL;
     mMovingHoleCheckbox = NULL;
     mMaxPowerCheckbox = NULL;
+    mCombolessCheckbox = NULL;
+    mGapFreeCheckbox = NULL;
+    mChainCountCheckbox = NULL;
+    mBankruptCheckbox = NULL;
 
     delete mModesPane;
     mModesPane = NULL;
@@ -400,7 +437,7 @@ void ModesDialog::LayoutModeWidgets()
     if (mModesPane == NULL)
         return;
 
-    ModesCatalog::GroupId selectedGroup = ModesCatalog::Group_Limitations;
+    ModesCatalog::GroupId selectedGroup = ModesCatalog::Group_GameMechanics;
     if (mSelectedGroupIndex >= 0 && mSelectedGroupIndex < ModesCatalog::kGroupCount)
         selectedGroup = ModesCatalog::kGroups[mSelectedGroupIndex].id;
 
@@ -691,6 +728,8 @@ void ModesDialog::CheckboxChecked(int theId, bool checked)
         app->DoMovingHoleDialog();
     else if (def->id == ModesCatalog::Mode_MaxPower)
         app->DoMaxPowerDialog();
+    else if (def->id == ModesCatalog::Mode_ChainCount)
+        app->DoChainCountDialog();
 
     MarkDirty();
 }
@@ -735,7 +774,7 @@ void ModesDialog::DrawModeLabels(Graphics *g)
     // Graphics is translated to ModesPane; child widget coords are pane-relative.
     g->SetFont(FONT_DIALOG);
 
-    ModesCatalog::GroupId selectedGroup = ModesCatalog::Group_Limitations;
+    ModesCatalog::GroupId selectedGroup = ModesCatalog::Group_GameMechanics;
     if (mSelectedGroupIndex >= 0 && mSelectedGroupIndex < ModesCatalog::kGroupCount)
         selectedGroup = ModesCatalog::kGroups[mSelectedGroupIndex].id;
 
@@ -838,6 +877,26 @@ bool ModesDialog::IsMaxPowerSelected() const
     return mMaxPowerCheckbox != NULL && mMaxPowerCheckbox->IsChecked();
 }
 
+bool ModesDialog::IsCombolessSelected() const
+{
+    return mCombolessCheckbox != NULL && mCombolessCheckbox->IsChecked();
+}
+
+bool ModesDialog::IsGapFreeSelected() const
+{
+    return mGapFreeCheckbox != NULL && mGapFreeCheckbox->IsChecked();
+}
+
+bool ModesDialog::IsChainCountSelected() const
+{
+    return mChainCountCheckbox != NULL && mChainCountCheckbox->IsChecked();
+}
+
+bool ModesDialog::IsBankruptSelected() const
+{
+    return mBankruptCheckbox != NULL && mBankruptCheckbox->IsChecked();
+}
+
 void ModesDialog::GetBannedColors(bool outBanned[MAX_BALL_COLORS]) const
 {
     for (int i = 0; i < MAX_BALL_COLORS; i++)
@@ -938,6 +997,37 @@ void ModesDialog::SetMaxPowerSelected(bool selected)
 {
     if (mMaxPowerCheckbox != NULL)
         mMaxPowerCheckbox->SetChecked(selected, false);
+    MarkDirty();
+}
+
+int ModesDialog::GetChainBonusThreshold() const
+{
+    return mPendingChainBonusThreshold;
+}
+
+void ModesDialog::SetChainBonusThreshold(int threshold)
+{
+    if (threshold < 1)
+        threshold = 1;
+    if (threshold > 20)
+        threshold = 20;
+    mPendingChainBonusThreshold = threshold;
+}
+
+bool ModesDialog::GetChainBonusDisabled() const
+{
+    return mPendingChainBonusDisabled;
+}
+
+void ModesDialog::SetChainBonusDisabled(bool disabled)
+{
+    mPendingChainBonusDisabled = disabled;
+}
+
+void ModesDialog::SetChainCountSelected(bool selected)
+{
+    if (mChainCountCheckbox != NULL)
+        mChainCountCheckbox->SetChecked(selected, false);
     MarkDirty();
 }
 

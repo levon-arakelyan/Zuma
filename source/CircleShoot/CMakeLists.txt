@@ -29,6 +29,7 @@ add_executable(Zuma WIN32
     SonicDialog.cpp
     MovingHoleDialog.cpp
     MaxPowerDialog.cpp
+    ChainCountDialog.cpp
     ConfirmContinueDialog.cpp
     MoreGamesScreen.cpp
     OptionsDialog.cpp

@@ -1386,6 +1386,8 @@ bool CurveMgr::CheckSet(Ball *theBall)
     Ball *aPrevEnd = NULL;
     Ball *aNextEnd = NULL;
     int aComboCount = theBall->GetComboCount();
+    if (mApp->mCombolessMode)
+        aComboCount = 0;
 
     int aCount = GetNumInARow(theBall, theBall->GetType(), &aNextEnd, &aPrevEnd);
 
@@ -1504,11 +1506,33 @@ void CurveMgr::DoScoring(Ball *theBall, int theNumBalls, int theComboCount, int 
     }
 
     FloatingTextHelper aFloat;
-    int aNumPoints = 100 * theComboCount + 10 * theNumBalls + theGapBonus;
+    int aComboCount = theComboCount;
+    int aGapBonus = theGapBonus;
+    int aNumGaps = theNumGaps;
+
+    if (mApp->mCombolessMode)
+        aComboCount = 0;
+    if (mApp->mGapFreeMode)
+    {
+        aGapBonus = 0;
+        aNumGaps = 0;
+    }
+
+    int aNumPoints = 100 * aComboCount + 10 * theNumBalls + aGapBonus;
     bool inARow = false;
     int aRowBonus = 0;
 
-    if (mBoard->mNumClearsInARow > 4 && theComboCount == 0)
+    int chainThreshold = 5; // vanilla: bonus when clears-in-a-row > 4
+    bool chainBonusAllowed = true;
+    if (mApp->mChainCountMode)
+    {
+        if (mApp->mChainBonusDisabled)
+            chainBonusAllowed = false;
+        else
+            chainThreshold = mApp->mChainBonusThreshold;
+    }
+
+    if (chainBonusAllowed && mBoard->mNumClearsInARow >= chainThreshold && aComboCount == 0)
     {
         aRowBonus = 10 * mBoard->mNumClearsInARow + 50;
         aNumPoints += aRowBonus;
@@ -1519,29 +1543,29 @@ void CurveMgr::DoScoring(Ball *theBall, int theNumBalls, int theComboCount, int 
     mBoard->mCurComboScore += aNumPoints;
     mBoard->IncScore(aNumPoints);
 
-    if (theComboCount > 0)
+    if (aComboCount > 0)
         ++mBoard->mLevelStats.mNumCombos;
 
-    if (theGapBonus)
+    if (aGapBonus)
         ++mBoard->mLevelStats.mNumGaps;
 
     int theColor = gTextBallColors[theBall->GetType()];
     aFloat.AddText(Sexy::StrFormat("+%d", aNumPoints), Sexy::FONT_FLOAT_ID, theColor);
 
-    if (theComboCount > 0)
+    if (aComboCount > 0)
     {
-        aFloat.AddText(Sexy::StrFormat("COMBO x%d", theComboCount + 1), Sexy::FONT_FLOAT_ID, theColor);
+        aFloat.AddText(Sexy::StrFormat("COMBO x%d", aComboCount + 1), Sexy::FONT_FLOAT_ID, theColor);
     }
 
-    if (theGapBonus > 0)
+    if (aGapBonus > 0)
     {
         std::string scoreString;
 
-        if (theNumGaps > 1)
+        if (aNumGaps > 1)
         {
             mBoard->mSoundMgr->AddSound(Sexy::SOUND_GAP_BONUS, 15, 0, 2.0);
 
-            if (theNumGaps > 2)
+            if (aNumGaps > 2)
             {
                 scoreString = "TRIPLE GAP BONUS";
             }
@@ -1563,7 +1587,10 @@ void CurveMgr::DoScoring(Ball *theBall, int theNumBalls, int theComboCount, int 
     if (inARow)
     {
         aFloat.AddText(Sexy::StrFormat("CHAIN BONUS x%d", mBoard->mNumClearsInARow), Sexy::FONT_FLOAT_ID, theColor);
-        mBoard->mSoundMgr->AddSound(Sexy::SOUND_CHAIN_BONUS, 0, 0, mBoard->mNumClearsInARow - 5);
+        int chainPitch = mBoard->mNumClearsInARow - chainThreshold;
+        if (chainPitch < 0)
+            chainPitch = 0;
+        mBoard->mSoundMgr->AddSound(Sexy::SOUND_CHAIN_BONUS, 0, 0, chainPitch);
     }
 
     int aClrX = mBoard->mClearedXSum / theNumBalls;
@@ -2092,7 +2119,9 @@ void CurveMgr::UpdateSets()
             Ball *aNextBall = aBall->GetNextBall();
             Ball *aPrevBall = aBall->GetPrevBall();
 
-            if (aNextBall != NULL && aNextBall->GetClearCount() == 0 && aPrevBall != NULL && aNextBall->GetType() == aPrevBall->GetType())
+            if (!mApp->mCombolessMode &&
+                aNextBall != NULL && aNextBall->GetClearCount() == 0 && aPrevBall != NULL &&
+                aNextBall->GetType() == aPrevBall->GetType())
             {
                 aNextBall->SetSuckCount(10);
                 aNextBall->SetComboCount(aBall->GetComboCount() + 1, aBall->GetComboScore());
@@ -2240,7 +2269,7 @@ void CurveMgr::AdvanceMergingBullet(BulletList::iterator &theBulletItr)
             aPrevBall->SetNeedCheckCollision(true);
         }
 
-        if (aMinGapDist > 0)
+        if (aMinGapDist > 0 && !mApp->mGapFreeMode)
         {
             aMinGapDist -= GetDefaultBallRadius() * 4;
             if (aMinGapDist < 0)
@@ -2297,7 +2326,10 @@ void CurveMgr::AdvanceMergingBullet(BulletList::iterator &theBulletItr)
         {
             mBoard->mNumClearsInARow--;
 
-            if (aPrevBall != NULL &&
+            // Pull same-color groups across a gap together (not a post-clear combo).
+            // Comboless disables this suck as well as chain-reaction combos.
+            if (!mApp->mCombolessMode &&
+                aPrevBall != NULL &&
                 !aPrevBall->GetCollidesWithNext() &&
                 aPrevBall->GetType() == aNewBall->GetType() &&
                 aPrevBall->GetBullet() == NULL &&
@@ -2306,7 +2338,8 @@ void CurveMgr::AdvanceMergingBullet(BulletList::iterator &theBulletItr)
                 aNewBall->SetSuckPending(true);
                 aNewBall->SetSuckCount(1);
             }
-            else if (aNextBall != NULL &&
+            else if (!mApp->mCombolessMode &&
+                     aNextBall != NULL &&
                      !aNewBall->GetCollidesWithNext() &&
                      aNextBall->GetType() == aNewBall->GetType() &&
                      aNextBall->GetBullet() == NULL &&
@@ -2404,7 +2437,8 @@ void CurveMgr::ActivateBomb(Ball *theBall)
 
         if (aBall->GetClearCount() == 0 && aBall->CollidesWithPhysically(theBall, 45))
         {
-            aBall->SetComboCount(mBoard->mCurComboCount, mBoard->mCurComboScore);
+            if (!mApp->mCombolessMode)
+                aBall->SetComboCount(mBoard->mCurComboCount, mBoard->mCurComboScore);
             mBoard->mNeedComboCount.push_back(aBall);
             StartClearCount(aBall);
             mBoard->mParticleMgr->AddExplosion(

@@ -25,6 +25,7 @@
 #include "SonicDialog.h"
 #include "MovingHoleDialog.h"
 #include "MaxPowerDialog.h"
+#include "ChainCountDialog.h"
 #include "ConfirmContinueDialog.h"
 #include "StatsDialog.h"
 #include "UserDialog.h"
@@ -96,6 +97,12 @@ CircleShootApp::CircleShootApp()
     mMaxPowerMode = false;
     mMaxPowerPercent = 100;
     mMaxPowerQuietSounds = true;
+    mCombolessMode = false;
+    mGapFreeMode = false;
+    mChainCountMode = false;
+    mChainBonusThreshold = 5; // vanilla chain bonus starts at 5 clears
+    mChainBonusDisabled = false;
+    mBankruptMode = false;
 }
 
 CircleShootApp::~CircleShootApp()
@@ -1037,6 +1044,22 @@ void CircleShootApp::DoMaxPowerDialog()
     AddDialog(DialogType_MaxPower, dialog);
 }
 
+void CircleShootApp::DoChainCountDialog()
+{
+    if (GetDialog(DialogType_ChainCount) != NULL)
+        return;
+
+    ModesDialog *modes = (ModesDialog *)GetDialog(DialogType_Modes);
+    int initialThreshold = (modes != NULL) ? modes->GetChainBonusThreshold() : mChainBonusThreshold;
+    if (initialThreshold < 1 || initialThreshold > 20)
+        initialThreshold = 5;
+    bool disableBonus = (modes != NULL) ? modes->GetChainBonusDisabled() : mChainBonusDisabled;
+
+    Dialog *dialog = new ChainCountDialog(initialThreshold, disableBonus);
+    SetupDialog(dialog, 420);
+    AddDialog(DialogType_ChainCount, dialog);
+}
+
 void CircleShootApp::DoModeHelpDialog(const std::string &theTitle, const std::string &theDescription)
 {
     KillDialog(DialogType_ModeHelp);
@@ -1171,12 +1194,18 @@ void CircleShootApp::FinishModesDialog(bool apply)
     bool uglyChain = false;
     bool movingHole = false;
     bool maxPower = false;
+    bool comboless = false;
+    bool gapFree = false;
+    bool chainCount = false;
+    bool bankrupt = false;
     bool bannedColors[MAX_BALL_COLORS];
     bool disabledPowerUps[PowerType_Max];
     float chainSpeed = 1.0f;
     int movingHoleSpeed = 20;
     int maxPowerPercent = 100;
     bool maxPowerQuietSounds = true;
+    int chainBonusThreshold = 5;
+    bool chainBonusDisabled = false;
 
     if (apply)
     {
@@ -1191,10 +1220,16 @@ void CircleShootApp::FinishModesDialog(bool apply)
         uglyChain = dialog->IsUglyChainSelected();
         movingHole = dialog->IsMovingHoleSelected();
         maxPower = dialog->IsMaxPowerSelected();
+        comboless = dialog->IsCombolessSelected();
+        gapFree = dialog->IsGapFreeSelected();
+        chainCount = dialog->IsChainCountSelected();
+        bankrupt = dialog->IsBankruptSelected();
         chainSpeed = dialog->GetChainSpeedMultiplier();
         movingHoleSpeed = dialog->GetMovingHoleSpeed();
         maxPowerPercent = dialog->GetMaxPowerPercent();
         maxPowerQuietSounds = dialog->GetMaxPowerQuietSounds();
+        chainBonusThreshold = dialog->GetChainBonusThreshold();
+        chainBonusDisabled = dialog->GetChainBonusDisabled();
     }
 
     dialog->PrepareClose();
@@ -1204,6 +1239,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
     KillDialog(DialogType_Sonic);
     KillDialog(DialogType_MovingHole);
     KillDialog(DialogType_MaxPower);
+    KillDialog(DialogType_ChainCount);
     KillDialog(DialogType_ModeHelp);
     KillDialog(DialogType_Modes);
 
@@ -1224,10 +1260,16 @@ void CircleShootApp::FinishModesDialog(bool apply)
         mUglyChainMode = uglyChain;
         mMovingHoleMode = movingHole;
         mMaxPowerMode = maxPower;
+        mCombolessMode = comboless;
+        mGapFreeMode = gapFree;
+        mChainCountMode = chainCount;
+        mBankruptMode = bankrupt;
         mChainSpeedMultiplier = chainSpeed;
         mMovingHoleSpeed = movingHoleSpeed;
         mMaxPowerPercent = maxPowerPercent;
         mMaxPowerQuietSounds = maxPowerQuietSounds;
+        mChainBonusThreshold = chainBonusThreshold;
+        mChainBonusDisabled = chainBonusDisabled;
     }
 }
 
@@ -1353,6 +1395,30 @@ void CircleShootApp::FinishMaxPowerDialog(bool apply)
     KillDialog(DialogType_MaxPower);
 }
 
+void CircleShootApp::FinishChainCountDialog(bool apply)
+{
+    ChainCountDialog *chainDialog = (ChainCountDialog *)GetDialog(DialogType_ChainCount);
+    ModesDialog *modesDialog = (ModesDialog *)GetDialog(DialogType_Modes);
+    if (chainDialog == NULL)
+        return;
+
+    if (apply)
+    {
+        if (modesDialog != NULL)
+        {
+            modesDialog->SetChainBonusThreshold(chainDialog->GetThreshold());
+            modesDialog->SetChainBonusDisabled(chainDialog->GetDisableBonus());
+            modesDialog->SetChainCountSelected(true);
+        }
+    }
+    else if (modesDialog != NULL)
+    {
+        modesDialog->SetChainCountSelected(false);
+    }
+
+    KillDialog(DialogType_ChainCount);
+}
+
 bool CircleShootApp::IsColorBanned(int theColor) const
 {
     if (!mColorsBanMode || theColor < 0 || theColor >= MAX_BALL_COLORS)
@@ -1457,6 +1523,9 @@ bool CircleShootApp::CheckYesNoButton(int theButton)
         case 2029:
             FinishMaxPowerDialog(true);
             return true;
+        case 2030:
+            FinishChainCountDialog(true);
+            return true;
         default:
             KillDialog(theButton - 2000);
             return true;
@@ -1521,6 +1590,9 @@ bool CircleShootApp::CheckYesNoButton(int theButton)
             return true;
         case 3029:
             FinishMaxPowerDialog(false);
+            return true;
+        case 3030:
+            FinishChainCountDialog(false);
             return true;
         default:
             KillDialog(theButton - 3000);
