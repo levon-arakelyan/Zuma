@@ -68,6 +68,11 @@ namespace Sexy
         bool mMovingHoleMode;
         float mChainSpeedMultiplier;
         int mMovingHoleSpeed; // 0 = Steady, 100 = Ultra fast
+        // Append new mode fields at the end so existing member offsets stay stable
+        // across incremental MSVC builds (shifting mid-class fields caused quit ODR crashes).
+        bool mMaxPowerMode;
+        int mMaxPowerPercent; // 0-100% of spawned balls that get a power-up
+        bool mMaxPowerQuietSounds;
 
         bool IsColorBanned(int theColor) const;
         bool IsPowerUpDisabled(int thePowerType) const;
@@ -120,6 +125,7 @@ namespace Sexy
         void DoUnpoweredDialog();
         void DoSonicDialog();
         void DoMovingHoleDialog();
+        void DoMaxPowerDialog();
         void DoModeHelpDialog(const std::string &theTitle, const std::string &theDescription);
         void DoConfirmContinueDialog(const std::string &theVerboseLevelString, const std::string &theDisplayName, int theScore);
         void DoGetReadyDialog();
@@ -143,6 +149,7 @@ namespace Sexy
         void FinishUnpoweredDialog(bool apply);
         void FinishSonicDialog(bool apply);
         void FinishMovingHoleDialog(bool apply);
+        void FinishMaxPowerDialog(bool apply);
         void FinishConfirmMainMenuDialog(bool mainMenu);
         void FinishStatsDialog(bool);
 

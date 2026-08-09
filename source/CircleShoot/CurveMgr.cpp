@@ -919,7 +919,8 @@ bool gGotPowerUp[(int)PowerType_Max] = {false, false, false, false};
 void CurveMgr::ActivatePower(Ball *theBall)
 {
     PowerType aPowerType = theBall->GetPowerTypeWussy();
-    gGotPowerUp[aPowerType] = true;
+    if (aPowerType >= 0 && aPowerType < PowerType_Max)
+        gGotPowerUp[aPowerType] = true;
 
     if (aPowerType == PowerType_Bomb)
     {
@@ -1453,7 +1454,9 @@ bool CurveMgr::CheckSet(Ball *theBall)
 
     mBoard->mNeedComboCount.clear();
 
-    if (!mHadPowerUp)
+    // Normally power clears skip the destroy SFX (power SFX play instead).
+    // With Max power quiet-sounds, keep a single regular destroy sound instead.
+    if (!mHadPowerUp || (mApp->mMaxPowerMode && mApp->mMaxPowerQuietSounds))
     {
         int *destroySound = &Sexy::SOUND_BALLDESTROYED1;
 
@@ -1725,6 +1728,23 @@ void CurveMgr::AddBall()
     aBall->SetSuckCount(0);
     aBall->SetGapBonus(0, 0);
     aBall->SetComboCount(0, 0);
+
+    if (mApp->mMaxPowerMode && mApp->mMaxPowerPercent > 0)
+    {
+        if ((Sexy::AppRand() % 100) < mApp->mMaxPowerPercent)
+        {
+            int available[PowerType_Max];
+            int count = 0;
+            for (int i = 0; i < (int)PowerType_Max; i++)
+            {
+                if (!mApp->IsPowerUpDisabled(i))
+                    available[count++] = i;
+            }
+
+            if (count > 0)
+                aBall->SetPowerType((PowerType)available[Sexy::AppRand() % count], false);
+        }
+    }
 
     mPendingBalls.pop_front();
 }
@@ -2096,6 +2116,10 @@ void CurveMgr::UpdateSets()
 void CurveMgr::UpdatePowerUps()
 {
     if (mBallList.empty())
+        return;
+
+    // Max power already stamps every spawned ball; skip random mid-chain rolls.
+    if (mApp->mMaxPowerMode)
         return;
 
     for (int i = 0; i < (int)PowerType_Max; i++)

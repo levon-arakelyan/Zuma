@@ -79,6 +79,7 @@ namespace Sexy
         DialogType_Sonic = 26,
         DialogType_ModeHelp = 27,
         DialogType_MovingHole = 28,
+        DialogType_MaxPower = 29,
         DialogType_Max,
     };
 

@@ -41,6 +41,7 @@ namespace Sexy
             Mode_Bomber,
             Mode_UglyChain,
             Mode_MovingHole,
+            Mode_MaxPower,
             Mode_Count
         };
     }
@@ -109,6 +110,7 @@ namespace Sexy
         bool IsBomberSelected() const;
         bool IsUglyChainSelected() const;
         bool IsMovingHoleSelected() const;
+        bool IsMaxPowerSelected() const;
 
         void GetBannedColors(bool outBanned[MAX_BALL_COLORS]) const;
         void SetBannedColors(const bool banned[MAX_BALL_COLORS]);
@@ -126,6 +128,12 @@ namespace Sexy
         void SetMovingHoleSpeed(int speed);
         void SetMovingHoleSelected(bool selected);
 
+        int GetMaxPowerPercent() const;
+        void SetMaxPowerPercent(int percent);
+        bool GetMaxPowerQuietSounds() const;
+        void SetMaxPowerQuietSounds(bool quiet);
+        void SetMaxPowerSelected(bool selected);
+
         void PrepareClose();
 
         // Named aliases kept for CircleShootApp / Finish* helpers
@@ -137,6 +145,7 @@ namespace Sexy
         Checkbox *mBomberCheckbox;
         Checkbox *mUglyChainCheckbox;
         Checkbox *mMovingHoleCheckbox;
+        Checkbox *mMaxPowerCheckbox;
 
         ModeWidgetSlot mModeSlots[ModesCatalog::Mode_Count];
 
@@ -150,6 +159,8 @@ namespace Sexy
         bool mPendingDisabledPowerUps[PowerType_Max];
         float mPendingChainSpeedMultiplier;
         int mPendingMovingHoleSpeed;
+        int mPendingMaxPowerPercent;
+        bool mPendingMaxPowerQuietSounds;
         int mHoveredHitId;
         int mSelectedGroupIndex;
         int mDividerX;

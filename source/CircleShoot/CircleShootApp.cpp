@@ -24,6 +24,7 @@
 #include "UnpoweredDialog.h"
 #include "SonicDialog.h"
 #include "MovingHoleDialog.h"
+#include "MaxPowerDialog.h"
 #include "StatsDialog.h"
 #include "UserDialog.h"
 #include "AdventureScreen.h"
@@ -91,6 +92,9 @@ CircleShootApp::CircleShootApp()
     mMovingHoleMode = false;
     mChainSpeedMultiplier = 1.0f;
     mMovingHoleSpeed = 20; // ~old 0.5s crawl rate; 100 = Ultra fast (~0.1s)
+    mMaxPowerMode = false;
+    mMaxPowerPercent = 100;
+    mMaxPowerQuietSounds = true;
 }
 
 CircleShootApp::~CircleShootApp()
@@ -1018,6 +1022,20 @@ void CircleShootApp::DoMovingHoleDialog()
     AddDialog(DialogType_MovingHole, dialog);
 }
 
+void CircleShootApp::DoMaxPowerDialog()
+{
+    if (GetDialog(DialogType_MaxPower) != NULL)
+        return;
+
+    ModesDialog *modes = (ModesDialog *)GetDialog(DialogType_Modes);
+    int initialPercent = (modes != NULL) ? modes->GetMaxPowerPercent() : mMaxPowerPercent;
+    bool quietSounds = (modes != NULL) ? modes->GetMaxPowerQuietSounds() : mMaxPowerQuietSounds;
+
+    Dialog *dialog = new MaxPowerDialog(initialPercent, quietSounds);
+    SetupDialog(dialog, 420);
+    AddDialog(DialogType_MaxPower, dialog);
+}
+
 void CircleShootApp::DoModeHelpDialog(const std::string &theTitle, const std::string &theDescription)
 {
     KillDialog(DialogType_ModeHelp);
@@ -1148,10 +1166,13 @@ void CircleShootApp::FinishModesDialog(bool apply)
     bool bomber = false;
     bool uglyChain = false;
     bool movingHole = false;
+    bool maxPower = false;
     bool bannedColors[MAX_BALL_COLORS];
     bool disabledPowerUps[PowerType_Max];
     float chainSpeed = 1.0f;
     int movingHoleSpeed = 20;
+    int maxPowerPercent = 100;
+    bool maxPowerQuietSounds = true;
 
     if (apply)
     {
@@ -1165,8 +1186,11 @@ void CircleShootApp::FinishModesDialog(bool apply)
         bomber = dialog->IsBomberSelected();
         uglyChain = dialog->IsUglyChainSelected();
         movingHole = dialog->IsMovingHoleSelected();
+        maxPower = dialog->IsMaxPowerSelected();
         chainSpeed = dialog->GetChainSpeedMultiplier();
         movingHoleSpeed = dialog->GetMovingHoleSpeed();
+        maxPowerPercent = dialog->GetMaxPowerPercent();
+        maxPowerQuietSounds = dialog->GetMaxPowerQuietSounds();
     }
 
     dialog->PrepareClose();
@@ -1175,6 +1199,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
     KillDialog(DialogType_Unpowered);
     KillDialog(DialogType_Sonic);
     KillDialog(DialogType_MovingHole);
+    KillDialog(DialogType_MaxPower);
     KillDialog(DialogType_ModeHelp);
     KillDialog(DialogType_Modes);
 
@@ -1194,8 +1219,11 @@ void CircleShootApp::FinishModesDialog(bool apply)
         mBomberMode = bomber;
         mUglyChainMode = uglyChain;
         mMovingHoleMode = movingHole;
+        mMaxPowerMode = maxPower;
         mChainSpeedMultiplier = chainSpeed;
         mMovingHoleSpeed = movingHoleSpeed;
+        mMaxPowerPercent = maxPowerPercent;
+        mMaxPowerQuietSounds = maxPowerQuietSounds;
     }
 }
 
@@ -1295,6 +1323,30 @@ void CircleShootApp::FinishMovingHoleDialog(bool apply)
     }
 
     KillDialog(DialogType_MovingHole);
+}
+
+void CircleShootApp::FinishMaxPowerDialog(bool apply)
+{
+    MaxPowerDialog *powerDialog = (MaxPowerDialog *)GetDialog(DialogType_MaxPower);
+    ModesDialog *modesDialog = (ModesDialog *)GetDialog(DialogType_Modes);
+    if (powerDialog == NULL)
+        return;
+
+    if (apply)
+    {
+        if (modesDialog != NULL)
+        {
+            modesDialog->SetMaxPowerPercent(powerDialog->GetPercent());
+            modesDialog->SetMaxPowerQuietSounds(powerDialog->GetQuietSounds());
+            modesDialog->SetMaxPowerSelected(true);
+        }
+    }
+    else if (modesDialog != NULL)
+    {
+        modesDialog->SetMaxPowerSelected(false);
+    }
+
+    KillDialog(DialogType_MaxPower);
 }
 
 bool CircleShootApp::IsColorBanned(int theColor) const
@@ -1398,6 +1450,9 @@ bool CircleShootApp::CheckYesNoButton(int theButton)
         case 2028:
             FinishMovingHoleDialog(true);
             return true;
+        case 2029:
+            FinishMaxPowerDialog(true);
+            return true;
         default:
             KillDialog(theButton - 2000);
             return true;
@@ -1459,6 +1514,9 @@ bool CircleShootApp::CheckYesNoButton(int theButton)
             return true;
         case 3028:
             FinishMovingHoleDialog(false);
+            return true;
+        case 3029:
+            FinishMaxPowerDialog(false);
             return true;
         default:
             KillDialog(theButton - 3000);

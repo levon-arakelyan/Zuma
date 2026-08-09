@@ -1686,26 +1686,36 @@ void Board::ButtonDepress(int theId)
 
 void Board::ActivatePower(Ball *theBall)
 {
+    // Optional Max power setting: skip loud power SFX and use regular destroy sounds.
+    bool playPowerSound = !(GetCircleShootApp()->mMaxPowerMode &&
+                            GetCircleShootApp()->mMaxPowerQuietSounds);
+
     switch (theBall->GetPowerTypeWussy())
     {
     case PowerType_Bomb:
     {
-        int aTicks = Sexy::BoardGetTickCount();
-        if (aTicks - mLastExplosionTick > 250)
+        if (playPowerSound)
         {
-            mLastExplosionTick = aTicks;
-            mApp->PlaySample(Sexy::SOUND_EXPLODE);
+            int aTicks = Sexy::BoardGetTickCount();
+            if (aTicks - mLastExplosionTick > 250)
+            {
+                mLastExplosionTick = aTicks;
+                mApp->PlaySample(Sexy::SOUND_EXPLODE);
+            }
         }
         break;
     }
     case PowerType_MoveBackwards:
-        mApp->PlaySample(Sexy::SOUND_BACKWARDS_BALL);
+        if (playPowerSound)
+            mApp->PlaySample(Sexy::SOUND_BACKWARDS_BALL);
         break;
     case PowerType_SlowDown:
-        mApp->PlaySample(Sexy::SOUND_SLOWDOWN_BALL);
+        if (playPowerSound)
+            mApp->PlaySample(Sexy::SOUND_SLOWDOWN_BALL);
         break;
     case PowerType_Accuracy:
-        mApp->PlaySample(Sexy::SOUND_ACCURACY_BALL);
+        if (playPowerSound)
+            mApp->PlaySample(Sexy::SOUND_ACCURACY_BALL);
         mAccuracyCount = 2000;
         DoAccuracy(true);
         break;

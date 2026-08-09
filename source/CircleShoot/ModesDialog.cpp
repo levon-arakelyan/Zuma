@@ -63,6 +63,8 @@ namespace ModesCatalog
         "The rolling chain never places the same color next to itself. Every neighbor pair is a different color.";
     const char *const kMovingHoleDescription =
         "The end hole crawls backward along the path at a speed you choose, so the chain has less and less distance before it falls in.";
+    const char *const kMaxPowerDescription =
+        "Choose what percent of balls on the chain spawn as power-ups. Optionally replace loud power-up sounds with regular destroy sounds.";
 
     // --- Widget ids ---
     const int kGroupListId = 0;
@@ -101,6 +103,7 @@ namespace ModesCatalog
         {Mode_MovingHole, Group_Limitations, "Moving hole", kMovingHoleDescription, true},
         {Mode_MachineGun, Group_Imbalance, "Machine gun", kMachineGunDescription, false},
         {Mode_Bomber, Group_Imbalance, "Bomber", kBomberDescription, false},
+        {Mode_MaxPower, Group_Imbalance, "Max power", kMaxPowerDescription, true},
     };
     static const int kModeCount = sizeof(kModes) / sizeof(kModes[0]);
 
@@ -270,6 +273,7 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
     mBomberCheckbox = mModeSlots[ModesCatalog::Mode_Bomber].mCheckbox;
     mUglyChainCheckbox = mModeSlots[ModesCatalog::Mode_UglyChain].mCheckbox;
     mMovingHoleCheckbox = mModeSlots[ModesCatalog::Mode_MovingHole].mCheckbox;
+    mMaxPowerCheckbox = mModeSlots[ModesCatalog::Mode_MaxPower].mCheckbox;
 
     CircleShootApp *app = GetCircleShootApp();
     if (mColorsBanCheckbox != NULL)
@@ -288,6 +292,8 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
         mUglyChainCheckbox->mChecked = app->mUglyChainMode;
     if (mMovingHoleCheckbox != NULL)
         mMovingHoleCheckbox->mChecked = app->mMovingHoleMode;
+    if (mMaxPowerCheckbox != NULL)
+        mMaxPowerCheckbox->mChecked = app->mMaxPowerMode;
 
     for (int i = 0; i < MAX_BALL_COLORS; i++)
         mPendingBannedColors[i] = app->mBannedColors[i];
@@ -295,6 +301,8 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
         mPendingDisabledPowerUps[i] = app->mDisabledPowerUps[i];
     mPendingChainSpeedMultiplier = app->mChainSpeedMultiplier;
     mPendingMovingHoleSpeed = app->mMovingHoleSpeed;
+    mPendingMaxPowerPercent = app->mMaxPowerPercent;
+    mPendingMaxPowerQuietSounds = app->mMaxPowerQuietSounds;
 
     for (int i = 0; i < ModesCatalog::kGroupCount; i++)
         mGroupList->AddLine(ModesCatalog::kGroups[i].name, false);
@@ -322,6 +330,7 @@ ModesDialog::~ModesDialog()
     mBomberCheckbox = NULL;
     mUglyChainCheckbox = NULL;
     mMovingHoleCheckbox = NULL;
+    mMaxPowerCheckbox = NULL;
 
     delete mModesPane;
     mModesPane = NULL;
@@ -372,6 +381,7 @@ void ModesDialog::PrepareClose()
     mBomberCheckbox = NULL;
     mUglyChainCheckbox = NULL;
     mMovingHoleCheckbox = NULL;
+    mMaxPowerCheckbox = NULL;
 
     delete mModesPane;
     mModesPane = NULL;
@@ -679,6 +689,8 @@ void ModesDialog::CheckboxChecked(int theId, bool checked)
         app->DoSonicDialog();
     else if (def->id == ModesCatalog::Mode_MovingHole)
         app->DoMovingHoleDialog();
+    else if (def->id == ModesCatalog::Mode_MaxPower)
+        app->DoMaxPowerDialog();
 
     MarkDirty();
 }
@@ -821,6 +833,11 @@ bool ModesDialog::IsMovingHoleSelected() const
     return mMovingHoleCheckbox != NULL && mMovingHoleCheckbox->IsChecked();
 }
 
+bool ModesDialog::IsMaxPowerSelected() const
+{
+    return mMaxPowerCheckbox != NULL && mMaxPowerCheckbox->IsChecked();
+}
+
 void ModesDialog::GetBannedColors(bool outBanned[MAX_BALL_COLORS]) const
 {
     for (int i = 0; i < MAX_BALL_COLORS; i++)
@@ -890,6 +907,37 @@ void ModesDialog::SetMovingHoleSelected(bool selected)
 {
     if (mMovingHoleCheckbox != NULL)
         mMovingHoleCheckbox->SetChecked(selected, false);
+    MarkDirty();
+}
+
+int ModesDialog::GetMaxPowerPercent() const
+{
+    return mPendingMaxPowerPercent;
+}
+
+void ModesDialog::SetMaxPowerPercent(int percent)
+{
+    if (percent < 0)
+        percent = 0;
+    if (percent > 100)
+        percent = 100;
+    mPendingMaxPowerPercent = percent;
+}
+
+bool ModesDialog::GetMaxPowerQuietSounds() const
+{
+    return mPendingMaxPowerQuietSounds;
+}
+
+void ModesDialog::SetMaxPowerQuietSounds(bool quiet)
+{
+    mPendingMaxPowerQuietSounds = quiet;
+}
+
+void ModesDialog::SetMaxPowerSelected(bool selected)
+{
+    if (mMaxPowerCheckbox != NULL)
+        mMaxPowerCheckbox->SetChecked(selected, false);
     MarkDirty();
 }
 
