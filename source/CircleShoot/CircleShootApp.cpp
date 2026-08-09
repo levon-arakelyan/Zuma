@@ -25,6 +25,7 @@
 #include "SonicDialog.h"
 #include "MovingHoleDialog.h"
 #include "MaxPowerDialog.h"
+#include "ConfirmContinueDialog.h"
 #include "StatsDialog.h"
 #include "UserDialog.h"
 #include "AdventureScreen.h"
@@ -1053,11 +1054,8 @@ void CircleShootApp::DoConfirmContinueDialog(const std::string &theVerboseLevelS
                         "\r\n" +
                         aScore;
 
-    Dialog *aDialog = NewDialog(DialogType_ConfirmContinue, true, "CONTINUE?", aText, "", Dialog::BUTTONS_OK_CANCEL);
-
-    aDialog->mYesButton->mLabel = "Continue";
-    aDialog->mNoButton->mLabel = "New Game";
-
+    Dialog *aDialog = new ConfirmContinueDialog(aText);
+    SetupDialog(aDialog, 348);
     AddDialog(DialogType_ConfirmContinue, aDialog);
 }
 
@@ -1126,6 +1124,12 @@ void CircleShootApp::FinishConfirmContinueDialog(bool startGame)
     {
         ShowAdventureScreen(false, false);
     }
+}
+
+void CircleShootApp::FinishConfirmContinueDialogCancel()
+{
+    KillDialog(DialogType_ConfirmContinue);
+    mSaveGameBuffer.Clear();
 }
 
 void CircleShootApp::FinishOptionsDialog(bool saveSettings)
@@ -1663,5 +1667,5 @@ void CircleShootApp::EndHelpScreen()
 
 void CircleShootApp::ReturnToMainMenu()
 {
-    DoConfirmMainMenuDialog();
+    ShowMainMenu();
 }

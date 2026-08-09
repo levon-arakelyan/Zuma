@@ -142,6 +142,7 @@ namespace Sexy
         void FinishRegisterDialog(bool confirm);
         void FinishNextTempleDialog(bool save);
         void FinishConfirmContinueDialog(bool startGame);
+        void FinishConfirmContinueDialogCancel();
         void FinishGetReadyDialog();
         void FinishOptionsDialog(bool confirm);
         void FinishModesDialog(bool apply);
