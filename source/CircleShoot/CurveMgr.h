@@ -168,6 +168,7 @@ namespace Sexy
 		bool HasReachedCruisingSpeed();
 		void AddPowerUp(PowerType thePower);
 		void ApplyColorShift(const int theMap[MAX_BALL_COLORS]);
+		void ApplyInvisible(int theFrames, int thePercent);
 
 		void SyncState(DataSync &theSync);
 		void RestoreMovingHoleAfterLoad();

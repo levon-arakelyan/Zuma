@@ -2554,3 +2554,40 @@ void CurveMgr::ApplyColorShift(const int theMap[MAX_BALL_COLORS])
         aBall->SetType(dest);
     }
 }
+
+void CurveMgr::ApplyInvisible(int theFrames, int thePercent)
+{
+    if (theFrames <= 0 || thePercent <= 0)
+        return;
+    if (thePercent > 100)
+        thePercent = 100;
+
+    Ball *candidates[512];
+    int count = 0;
+    for (BallList::iterator anItr = mBallList.begin(); anItr != mBallList.end(); ++anItr)
+    {
+        Ball *aBall = *anItr;
+        if (aBall == NULL || aBall->GetClearCount() != 0)
+            continue;
+        if (count < 512)
+            candidates[count++] = aBall;
+    }
+
+    if (count == 0)
+        return;
+
+    int n = (count * thePercent + 50) / 100;
+    if (n < 1)
+        n = 1;
+    if (n > count)
+        n = count;
+
+    for (int i = 0; i < n; i++)
+    {
+        int j = i + (int)(Sexy::AppRand() % (count - i));
+        Ball *tmp = candidates[i];
+        candidates[i] = candidates[j];
+        candidates[j] = tmp;
+        candidates[i]->SetInvisible(theFrames);
+    }
+}

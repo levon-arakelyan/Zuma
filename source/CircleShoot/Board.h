@@ -199,6 +199,7 @@ namespace Sexy
 		void UpdateGuide();
 		void UpdateTreasure();
 		void UpdateColorShift();
+		void UpdateInvisible();
 		void UpdateMiscStuff();
 
 		void DrawTreasure(Graphics *g);

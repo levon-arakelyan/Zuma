@@ -74,6 +74,8 @@ namespace Sexy
 		// Append-only: keep layout stable for MSVC incremental rebuilds / Bullet offsets
 		int mColorShiftFrom;  // -1 = not morphing
 		int mColorShiftFrame; // 0..COLOR_SHIFT_BLEND_FRAMES
+		int mInvisibleFrames; // hold frames after fully faded out
+		int mInvisibleFadeFrame; // 0 = visible .. INVISIBLE_BLEND_FRAMES = hidden
 
 		void DrawBomb(Graphics *g);
 		void DrawStandardPower(Graphics *g, int theBallImageId, int theBlinkImageId, int thePowerType);
@@ -84,6 +86,7 @@ namespace Sexy
 
 	public:
 		static const int COLOR_SHIFT_BLEND_FRAMES; // 0.3s at ~100 UPS
+		static const int INVISIBLE_BLEND_FRAMES;  // 0.3s fade in/out
 
 		Ball();
 		virtual ~Ball();
@@ -92,6 +95,9 @@ namespace Sexy
 		void SetWayPoint(float thePoint);
 		void SetType(int theType) { mType = theType; mColorShiftFrom = -1; }
 		void BeginColorShift(int theNewType);
+		void SetInvisible(int theFrames);
+		bool IsInvisible() const { return mInvisibleFadeFrame > 0 || mInvisibleFrames > 0; }
+		int GetInvisibleDrawAlpha() const;
 		void SetRotation(float theRot, bool immediate = true);
 		virtual void Draw(Graphics *g);
 		void DrawShadow(Graphics *g);

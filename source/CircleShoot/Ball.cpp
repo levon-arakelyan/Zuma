@@ -15,6 +15,7 @@
 using namespace Sexy;
 
 const int Ball::COLOR_SHIFT_BLEND_FRAMES = 30; // 0.3s at ~100 updates/sec
+const int Ball::INVISIBLE_BLEND_FRAMES = 30;  // 0.3s fade in/out
 
 BlendedImage *gBlendedBombLights[MAX_BALL_COLORS];
 BlendedImage *gBlendedPowerupLights[4];
@@ -118,6 +119,8 @@ Ball::Ball()
     mType = 0;
     mColorShiftFrom = -1;
     mColorShiftFrame = 0;
+    mInvisibleFrames = 0;
+    mInvisibleFadeFrame = 0;
     mBullet = NULL;
     mList = NULL;
     mCollidesWithNext = false;
@@ -278,6 +281,19 @@ void Ball::SetRotation(float theRot, bool immediate)
 
 void Ball::UpdateRotation()
 {
+    // Invisible hold starts after fade-out finishes; then fade back in.
+    if (mInvisibleFrames > 0)
+    {
+        if (mInvisibleFadeFrame < INVISIBLE_BLEND_FRAMES)
+            ++mInvisibleFadeFrame;
+        else
+            --mInvisibleFrames;
+    }
+    else if (mInvisibleFadeFrame > 0)
+    {
+        --mInvisibleFadeFrame;
+    }
+
     if (mColorShiftFrom >= 0)
     {
         ++mColorShiftFrame;
@@ -386,6 +402,9 @@ int Ball::GetRadius()
 
 void Ball::DrawShadow(Graphics *g)
 {
+    if (GetInvisibleDrawAlpha() < 128)
+        return;
+
     if (!gSexyAppBase->Is3DAccelerated())
         return;
 
@@ -441,21 +460,48 @@ void Ball::Draw(Graphics *g)
     if (mClearCount != 0)
     {
         DrawExplosion(g);
+        g->SetColorizeImages(false);
+        g->SetDrawMode(Graphics::DRAWMODE_NORMAL);
+        return;
     }
-    else
-    {
-        DoDraw(g);
-        if (mPowerFade && (mPowerFade & 0x10) != 0)
-        {
-            g->SetDrawMode(Graphics::DRAWMODE_ADDITIVE);
-            DoDraw(g);
-        }
 
-        if (gBallBlink)
+    int invAlpha = GetInvisibleDrawAlpha();
+    if (invAlpha <= 0)
+    {
+        g->SetColorizeImages(false);
+        g->SetDrawMode(Graphics::DRAWMODE_NORMAL);
+        return;
+    }
+
+    // Power sprites don't go through DrawBallType — tint the whole draw.
+    bool tintPower = invAlpha < 255 && mPowerType != PowerType_None && mPowerType != PowerType_Max;
+    if (tintPower)
+    {
+        g->SetColorizeImages(true);
+        g->SetColor(Color(255, 255, 255, invAlpha));
+    }
+
+    DoDraw(g);
+    if (mPowerFade && (mPowerFade & 0x10) != 0)
+    {
+        g->SetDrawMode(Graphics::DRAWMODE_ADDITIVE);
+        if (tintPower)
         {
-            g->SetDrawMode(Graphics::DRAWMODE_ADDITIVE);
-            DoDraw(g);
+            g->SetColorizeImages(true);
+            g->SetColor(Color(255, 255, 255, invAlpha));
         }
+        DoDraw(g);
+    }
+
+    if (gBallBlink)
+    {
+        g->SetDrawMode(Graphics::DRAWMODE_ADDITIVE);
+        if (tintPower)
+        {
+            g->SetColorizeImages(true);
+            g->SetColor(Color(255, 255, 255, invAlpha));
+        }
+        DoDraw(g);
     }
 
     g->SetColorizeImages(false);
@@ -753,9 +799,35 @@ void Ball::BeginColorShift(int theNewType)
     mType = theNewType;
 }
 
+void Ball::SetInvisible(int theFrames)
+{
+    if (theFrames < 0)
+        theFrames = 0;
+    // Refresh hold; fade-out continues from current fade frame.
+    mInvisibleFrames = theFrames;
+}
+
+int Ball::GetInvisibleDrawAlpha() const
+{
+    if (mInvisibleFadeFrame <= 0)
+        return 255;
+    if (mInvisibleFadeFrame >= INVISIBLE_BLEND_FRAMES)
+        return 0;
+
+    return 255 - (255 * mInvisibleFadeFrame + INVISIBLE_BLEND_FRAMES / 2) / INVISIBLE_BLEND_FRAMES;
+}
+
 void Ball::DrawBallType(Graphics *g, int theType, int theAlpha)
 {
     if (theType < 0 || theType >= MAX_BALL_COLORS || theAlpha <= 0)
+        return;
+
+    int invAlpha = GetInvisibleDrawAlpha();
+    if (invAlpha <= 0)
+        return;
+    if (invAlpha < 255)
+        theAlpha = (theAlpha * invAlpha + 127) / 255;
+    if (theAlpha <= 0)
         return;
 
     Image *image = Sexy::GetImageById((ResourceId)(theType + Sexy::IMAGE_BLUE_BALL_ID));

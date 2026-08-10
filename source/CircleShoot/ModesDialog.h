@@ -48,6 +48,7 @@ namespace Sexy
             Mode_ChainCount,
             Mode_Bankrupt,
             Mode_ColorShift,
+            Mode_Invisible,
             Mode_Count
         };
     }
@@ -122,6 +123,7 @@ namespace Sexy
         bool IsChainCountSelected() const;
         bool IsBankruptSelected() const;
         bool IsColorShiftSelected() const;
+        bool IsInvisibleSelected() const;
 
         void GetBannedColors(bool outBanned[MAX_BALL_COLORS]) const;
         void SetBannedColors(const bool banned[MAX_BALL_COLORS]);
@@ -161,6 +163,14 @@ namespace Sexy
         void SetColorShiftRandom(bool random);
         void SetColorShiftSelected(bool selected);
 
+        float GetInvisibleDurationSec() const;
+        void SetInvisibleDurationSec(float sec);
+        float GetInvisibleIntervalSec() const;
+        void SetInvisibleIntervalSec(float sec);
+        int GetInvisiblePercent() const;
+        void SetInvisiblePercent(int percent);
+        void SetInvisibleSelected(bool selected);
+
         void PrepareClose();
 
         // Named aliases kept for CircleShootApp / Finish* helpers
@@ -178,6 +188,7 @@ namespace Sexy
         Checkbox *mChainCountCheckbox;
         Checkbox *mBankruptCheckbox;
         Checkbox *mColorShiftCheckbox;
+        Checkbox *mInvisibleCheckbox;
 
         ModeWidgetSlot mModeSlots[ModesCatalog::Mode_Count];
 
@@ -199,6 +210,9 @@ namespace Sexy
         int mPendingColorShiftMap[MAX_BALL_COLORS];
         bool mPendingColorShiftRandom;
         bool mPendingColorShiftEnabled[MAX_BALL_COLORS];
+        float mPendingInvisibleDurationSec;
+        float mPendingInvisibleIntervalSec;
+        int mPendingInvisiblePercent;
         int mHoveredHitId;
         int mSelectedGroupIndex;
         int mDividerX;
@@ -208,6 +222,7 @@ namespace Sexy
 
     private:
         ButtonWidget *CreateModeHitArea(int theId);
+        void OpenModePicker(ModesCatalog::ModeId theId);
         void SelectGroup(int theIndex);
         void UpdateModesScrollbar();
         void ShowTooltip(const char *theText);

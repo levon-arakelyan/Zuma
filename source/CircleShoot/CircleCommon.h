@@ -83,6 +83,7 @@ namespace Sexy
         DialogType_ChainCount = 30,
         DialogType_ColorShift = 31,
         DialogType_ColorShiftTarget = 32,
+        DialogType_Invisible = 33,
         DialogType_Max,
     };
 

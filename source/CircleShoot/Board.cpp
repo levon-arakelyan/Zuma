@@ -608,6 +608,7 @@ void Board::UpdatePlaying()
     UpdateBullets();
     UpdateTreasure();
     UpdateColorShift();
+    UpdateInvisible();
 
     if (mLevelBeginning)
     {
@@ -1004,6 +1005,46 @@ void Board::UpdateColorShift()
 
     for (int i = 0; i < mNumCurves; i++)
         mCurveMgr[i]->ApplyColorShift(map);
+}
+
+void Board::UpdateInvisible()
+{
+    CircleShootApp *app = GetCircleShootApp();
+    if (app == NULL || !app->mInvisibleMode)
+        return;
+
+    float intervalSec = app->mInvisibleIntervalSec;
+    if (intervalSec < 0.5f)
+        intervalSec = 0.5f;
+    if (intervalSec > 10.0f)
+        intervalSec = 10.0f;
+
+    float durationSec = app->mInvisibleDurationSec;
+    if (durationSec < 0.5f)
+        durationSec = 0.5f;
+    if (durationSec > 10.0f)
+        durationSec = 10.0f;
+
+    // Board updates ~100 times per second.
+    int interval = (int)(intervalSec * 100.0f + 0.5f);
+    if (interval < 1)
+        interval = 1;
+
+    if (mStateCount == 0 || (mStateCount % interval) != 0)
+        return;
+
+    int durationFrames = (int)(durationSec * 100.0f + 0.5f);
+    if (durationFrames < 1)
+        durationFrames = 1;
+
+    int percent = app->mInvisiblePercent;
+    if (percent < 4)
+        percent = 4;
+    if (percent > 100)
+        percent = 100;
+
+    for (int i = 0; i < mNumCurves; i++)
+        mCurveMgr[i]->ApplyInvisible(durationFrames, percent);
 }
 
 void Board::UpdateMiscStuff()

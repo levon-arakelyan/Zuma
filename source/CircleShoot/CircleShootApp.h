@@ -84,6 +84,10 @@ namespace Sexy
         int mColorShiftMap[MAX_BALL_COLORS];
         bool mColorShiftRandom;
         bool mColorShiftEnabled[MAX_BALL_COLORS];
+        bool mInvisibleMode;
+        float mInvisibleDurationSec; // how long balls stay invisible
+        float mInvisibleIntervalSec; // how often a new invisibility wave starts
+        int mInvisiblePercent;       // 4-100, step 2: share of chain balls per wave
 
         bool IsColorBanned(int theColor) const;
         bool IsPowerUpDisabled(int thePowerType) const;
@@ -140,6 +144,7 @@ namespace Sexy
         void DoChainCountDialog();
         void DoColorShiftDialog();
         void DoColorShiftTargetDialog(int theSrcColor, int initialDest);
+        void DoInvisibleDialog();
         void DoModeHelpDialog(const std::string &theTitle, const std::string &theDescription);
         void DoConfirmContinueDialog(const std::string &theVerboseLevelString, const std::string &theDisplayName, int theScore);
         void DoGetReadyDialog();
@@ -168,6 +173,7 @@ namespace Sexy
         void FinishChainCountDialog(bool apply);
         void FinishColorShiftDialog(bool apply);
         void FinishColorShiftTargetDialog(bool apply);
+        void FinishInvisibleDialog(bool apply);
         void FinishConfirmMainMenuDialog(bool mainMenu);
         void FinishStatsDialog(bool);
 

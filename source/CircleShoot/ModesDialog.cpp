@@ -75,6 +75,8 @@ namespace ModesCatalog
         "No coins appear. It never spawns during the level.";
     const char *const kColorShiftDescription =
         "All balls on the rolling chain periodically change color. Enable colors to shift, choose each destination, set the interval (1-10 sec), or use random remapping.";
+    const char *const kInvisibleDescription =
+        "Periodically hide a random percent of chain balls. Choose duration, wave interval, and how many balls go invisible.";
 
     // --- Widget ids ---
     const int kGroupListId = 0;
@@ -111,6 +113,7 @@ namespace ModesCatalog
         {Mode_Sonic, Group_Challenges, "Sonic speed", kSonicDescription, true},
         {Mode_UglyChain, Group_Challenges, "Ugly chain", kUglyChainDescription, false},
         {Mode_ColorShift, Group_Challenges, "Color shift", kColorShiftDescription, true},
+        {Mode_Invisible, Group_Challenges, "Invisible", kInvisibleDescription, true},
         {Mode_Unpowered, Group_GameMechanics, "Unpowered", kUnpoweredDescription, true},
         {Mode_NoSwap, Group_GameMechanics, "No swap", kNoSwapDescription, false},
         {Mode_Comboless, Group_GameMechanics, "Comboless", kCombolessDescription, false},
@@ -295,6 +298,7 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
     mChainCountCheckbox = mModeSlots[ModesCatalog::Mode_ChainCount].mCheckbox;
     mBankruptCheckbox = mModeSlots[ModesCatalog::Mode_Bankrupt].mCheckbox;
     mColorShiftCheckbox = mModeSlots[ModesCatalog::Mode_ColorShift].mCheckbox;
+    mInvisibleCheckbox = mModeSlots[ModesCatalog::Mode_Invisible].mCheckbox;
 
     CircleShootApp *app = GetCircleShootApp();
     if (mColorsBanCheckbox != NULL)
@@ -325,6 +329,8 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
         mBankruptCheckbox->mChecked = app->mBankruptMode;
     if (mColorShiftCheckbox != NULL)
         mColorShiftCheckbox->mChecked = app->mColorShiftMode;
+    if (mInvisibleCheckbox != NULL)
+        mInvisibleCheckbox->mChecked = app->mInvisibleMode;
 
     for (int i = 0; i < MAX_BALL_COLORS; i++)
         mPendingBannedColors[i] = app->mBannedColors[i];
@@ -347,6 +353,18 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
         mPendingColorShiftEnabled[i] = app->mColorShiftEnabled[i];
     }
     mPendingColorShiftRandom = app->mColorShiftRandom;
+    mPendingInvisibleDurationSec = app->mInvisibleDurationSec;
+    if (mPendingInvisibleDurationSec < 0.5f || mPendingInvisibleDurationSec > 10.0f)
+        mPendingInvisibleDurationSec = 3.0f;
+    mPendingInvisibleIntervalSec = app->mInvisibleIntervalSec;
+    if (mPendingInvisibleIntervalSec < 0.5f || mPendingInvisibleIntervalSec > 10.0f)
+        mPendingInvisibleIntervalSec = 5.0f;
+    mPendingInvisiblePercent = app->mInvisiblePercent;
+    if (mPendingInvisiblePercent < 4 || mPendingInvisiblePercent > 100)
+        mPendingInvisiblePercent = 50;
+    mPendingInvisiblePercent = (mPendingInvisiblePercent / 2) * 2;
+    if (mPendingInvisiblePercent < 4)
+        mPendingInvisiblePercent = 4;
 
     for (int i = 0; i < ModesCatalog::kGroupCount; i++)
         mGroupList->AddLine(ModesCatalog::kGroups[i].name, false);
@@ -380,6 +398,7 @@ ModesDialog::~ModesDialog()
     mChainCountCheckbox = NULL;
     mBankruptCheckbox = NULL;
     mColorShiftCheckbox = NULL;
+    mInvisibleCheckbox = NULL;
 
     delete mModesPane;
     mModesPane = NULL;
@@ -436,6 +455,7 @@ void ModesDialog::PrepareClose()
     mChainCountCheckbox = NULL;
     mBankruptCheckbox = NULL;
     mColorShiftCheckbox = NULL;
+    mInvisibleCheckbox = NULL;
 
     delete mModesPane;
     mModesPane = NULL;
@@ -727,13 +747,17 @@ void ModesDialog::ListClicked(int theId, int theIdx, int theClickCount)
 
 void ModesDialog::CheckboxChecked(int theId, bool checked)
 {
+    (void)theId;
+    (void)checked;
+    MarkDirty();
+}
+
+void ModesDialog::OpenModePicker(ModesCatalog::ModeId theId)
+{
     CircleShootApp *app = GetCircleShootApp();
-    const ModesCatalog::ModeDef *def = ModesCatalog::FindModeDef((ModesCatalog::ModeId)theId);
-    if (def == NULL || !def->opensPicker || !checked)
-    {
-        MarkDirty();
+    const ModesCatalog::ModeDef *def = ModesCatalog::FindModeDef(theId);
+    if (app == NULL || def == NULL || !def->opensPicker)
         return;
-    }
 
     if (def->id == ModesCatalog::Mode_ColorsBan)
         app->DoColorsBanDialog();
@@ -749,8 +773,8 @@ void ModesDialog::CheckboxChecked(int theId, bool checked)
         app->DoChainCountDialog();
     else if (def->id == ModesCatalog::Mode_ColorShift)
         app->DoColorShiftDialog();
-
-    MarkDirty();
+    else if (def->id == ModesCatalog::Mode_Invisible)
+        app->DoInvisibleDialog();
 }
 
 void ModesDialog::ButtonMouseEnter(int theId)
@@ -842,6 +866,14 @@ void ModesDialog::ButtonDepress(int theId)
     if (IsModeHitId(theId))
     {
         ModesCatalog::ModeId modeId = ModeIdFromHitId(theId);
+        const ModesCatalog::ModeDef *def = ModesCatalog::FindModeDef(modeId);
+        if (def != NULL && def->opensPicker)
+        {
+            OpenModePicker(modeId);
+            MarkDirty();
+            return;
+        }
+
         Checkbox *checkbox = CheckboxForMode(modeId);
         if (checkbox != NULL && checkbox->mVisible)
             checkbox->SetChecked(!checkbox->IsChecked());
@@ -919,6 +951,11 @@ bool ModesDialog::IsBankruptSelected() const
 bool ModesDialog::IsColorShiftSelected() const
 {
     return mColorShiftCheckbox != NULL && mColorShiftCheckbox->IsChecked();
+}
+
+bool ModesDialog::IsInvisibleSelected() const
+{
+    return mInvisibleCheckbox != NULL && mInvisibleCheckbox->IsChecked();
 }
 
 void ModesDialog::GetBannedColors(bool outBanned[MAX_BALL_COLORS]) const
@@ -1114,6 +1151,57 @@ void ModesDialog::SetColorShiftSelected(bool selected)
 {
     if (mColorShiftCheckbox != NULL)
         mColorShiftCheckbox->SetChecked(selected, false);
+    MarkDirty();
+}
+
+float ModesDialog::GetInvisibleDurationSec() const
+{
+    return mPendingInvisibleDurationSec;
+}
+
+void ModesDialog::SetInvisibleDurationSec(float sec)
+{
+    if (sec < 0.5f)
+        sec = 0.5f;
+    if (sec > 10.0f)
+        sec = 10.0f;
+    mPendingInvisibleDurationSec = sec;
+}
+
+float ModesDialog::GetInvisibleIntervalSec() const
+{
+    return mPendingInvisibleIntervalSec;
+}
+
+void ModesDialog::SetInvisibleIntervalSec(float sec)
+{
+    if (sec < 0.5f)
+        sec = 0.5f;
+    if (sec > 10.0f)
+        sec = 10.0f;
+    mPendingInvisibleIntervalSec = sec;
+}
+
+int ModesDialog::GetInvisiblePercent() const
+{
+    return mPendingInvisiblePercent;
+}
+
+void ModesDialog::SetInvisiblePercent(int percent)
+{
+    if (percent < 4)
+        percent = 4;
+    if (percent > 100)
+        percent = 100;
+    mPendingInvisiblePercent = (percent / 2) * 2;
+    if (mPendingInvisiblePercent < 4)
+        mPendingInvisiblePercent = 4;
+}
+
+void ModesDialog::SetInvisibleSelected(bool selected)
+{
+    if (mInvisibleCheckbox != NULL)
+        mInvisibleCheckbox->SetChecked(selected, false);
     MarkDirty();
 }
 

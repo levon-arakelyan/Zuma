@@ -28,6 +28,7 @@
 #include "ChainCountDialog.h"
 #include "ColorShiftDialog.h"
 #include "ColorShiftTargetDialog.h"
+#include "InvisibleDialog.h"
 #include "ConfirmContinueDialog.h"
 #include "StatsDialog.h"
 #include "UserDialog.h"
@@ -113,6 +114,10 @@ CircleShootApp::CircleShootApp()
         mColorShiftEnabled[i] = true;
     }
     mColorShiftRandom = true;
+    mInvisibleMode = false;
+    mInvisibleDurationSec = 3.0f;
+    mInvisibleIntervalSec = 5.0f;
+    mInvisiblePercent = 50;
 }
 
 CircleShootApp::~CircleShootApp()
@@ -1109,6 +1114,21 @@ void CircleShootApp::DoColorShiftTargetDialog(int theSrcColor, int initialDest)
     AddDialog(DialogType_ColorShiftTarget, dialog);
 }
 
+void CircleShootApp::DoInvisibleDialog()
+{
+    if (GetDialog(DialogType_Invisible) != NULL)
+        return;
+
+    ModesDialog *modes = (ModesDialog *)GetDialog(DialogType_Modes);
+    float duration = (modes != NULL) ? modes->GetInvisibleDurationSec() : mInvisibleDurationSec;
+    float interval = (modes != NULL) ? modes->GetInvisibleIntervalSec() : mInvisibleIntervalSec;
+    int percent = (modes != NULL) ? modes->GetInvisiblePercent() : mInvisiblePercent;
+
+    Dialog *dialog = new InvisibleDialog(duration, interval, percent);
+    SetupDialog(dialog, 420);
+    AddDialog(DialogType_Invisible, dialog);
+}
+
 void CircleShootApp::DoModeHelpDialog(const std::string &theTitle, const std::string &theDescription)
 {
     KillDialog(DialogType_ModeHelp);
@@ -1248,6 +1268,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
     bool chainCount = false;
     bool bankrupt = false;
     bool colorShift = false;
+    bool invisible = false;
     bool bannedColors[MAX_BALL_COLORS];
     bool disabledPowerUps[PowerType_Max];
     float chainSpeed = 1.0f;
@@ -1260,6 +1281,9 @@ void CircleShootApp::FinishModesDialog(bool apply)
     int colorShiftMap[MAX_BALL_COLORS];
     bool colorShiftRandom = true;
     bool colorShiftEnabled[MAX_BALL_COLORS];
+    float invisibleDurationSec = 3.0f;
+    float invisibleIntervalSec = 5.0f;
+    int invisiblePercent = 50;
     for (int i = 0; i < MAX_BALL_COLORS; i++)
     {
         colorShiftMap[i] = (i + 1) % MAX_BALL_COLORS;
@@ -1284,6 +1308,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
         chainCount = dialog->IsChainCountSelected();
         bankrupt = dialog->IsBankruptSelected();
         colorShift = dialog->IsColorShiftSelected();
+        invisible = dialog->IsInvisibleSelected();
         chainSpeed = dialog->GetChainSpeedMultiplier();
         movingHoleSpeed = dialog->GetMovingHoleSpeed();
         maxPowerPercent = dialog->GetMaxPowerPercent();
@@ -1294,6 +1319,9 @@ void CircleShootApp::FinishModesDialog(bool apply)
         dialog->GetColorShiftMap(colorShiftMap);
         dialog->GetColorShiftEnabled(colorShiftEnabled);
         colorShiftRandom = dialog->GetColorShiftRandom();
+        invisibleDurationSec = dialog->GetInvisibleDurationSec();
+        invisibleIntervalSec = dialog->GetInvisibleIntervalSec();
+        invisiblePercent = dialog->GetInvisiblePercent();
     }
 
     dialog->PrepareClose();
@@ -1306,6 +1334,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
     KillDialog(DialogType_ChainCount);
     KillDialog(DialogType_ColorShiftTarget);
     KillDialog(DialogType_ColorShift);
+    KillDialog(DialogType_Invisible);
     KillDialog(DialogType_ModeHelp);
     KillDialog(DialogType_Modes);
 
@@ -1331,6 +1360,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
         mChainCountMode = chainCount;
         mBankruptMode = bankrupt;
         mColorShiftMode = colorShift;
+        mInvisibleMode = invisible;
         mChainSpeedMultiplier = chainSpeed;
         mMovingHoleSpeed = movingHoleSpeed;
         mMaxPowerPercent = maxPowerPercent;
@@ -1344,6 +1374,9 @@ void CircleShootApp::FinishModesDialog(bool apply)
             mColorShiftEnabled[i] = colorShiftEnabled[i];
         }
         mColorShiftRandom = colorShiftRandom;
+        mInvisibleDurationSec = invisibleDurationSec;
+        mInvisibleIntervalSec = invisibleIntervalSec;
+        mInvisiblePercent = invisiblePercent;
     }
 }
 
@@ -1364,10 +1397,6 @@ void CircleShootApp::FinishColorsBanDialog(bool apply)
             modesDialog->SetBannedColors(banned);
             modesDialog->SetColorsBanSelected(true);
         }
-    }
-    else if (modesDialog != NULL)
-    {
-        modesDialog->SetColorsBanSelected(false);
     }
 
     KillDialog(DialogType_ColorsBan);
@@ -1391,10 +1420,6 @@ void CircleShootApp::FinishUnpoweredDialog(bool apply)
             modesDialog->SetUnpoweredSelected(true);
         }
     }
-    else if (modesDialog != NULL)
-    {
-        modesDialog->SetUnpoweredSelected(false);
-    }
 
     KillDialog(DialogType_Unpowered);
 }
@@ -1414,10 +1439,6 @@ void CircleShootApp::FinishSonicDialog(bool apply)
             modesDialog->SetSonicSelected(true);
         }
     }
-    else if (modesDialog != NULL)
-    {
-        modesDialog->SetSonicSelected(false);
-    }
 
     KillDialog(DialogType_Sonic);
 }
@@ -1436,10 +1457,6 @@ void CircleShootApp::FinishMovingHoleDialog(bool apply)
             modesDialog->SetMovingHoleSpeed(holeDialog->GetSpeed());
             modesDialog->SetMovingHoleSelected(true);
         }
-    }
-    else if (modesDialog != NULL)
-    {
-        modesDialog->SetMovingHoleSelected(false);
     }
 
     KillDialog(DialogType_MovingHole);
@@ -1461,10 +1478,6 @@ void CircleShootApp::FinishMaxPowerDialog(bool apply)
             modesDialog->SetMaxPowerSelected(true);
         }
     }
-    else if (modesDialog != NULL)
-    {
-        modesDialog->SetMaxPowerSelected(false);
-    }
 
     KillDialog(DialogType_MaxPower);
 }
@@ -1484,10 +1497,6 @@ void CircleShootApp::FinishChainCountDialog(bool apply)
             modesDialog->SetChainBonusDisabled(chainDialog->GetDisableBonus());
             modesDialog->SetChainCountSelected(true);
         }
-    }
-    else if (modesDialog != NULL)
-    {
-        modesDialog->SetChainCountSelected(false);
     }
 
     KillDialog(DialogType_ChainCount);
@@ -1517,12 +1526,29 @@ void CircleShootApp::FinishColorShiftDialog(bool apply)
             modesDialog->SetColorShiftSelected(true);
         }
     }
-    else if (modesDialog != NULL)
-    {
-        modesDialog->SetColorShiftSelected(false);
-    }
 
     KillDialog(DialogType_ColorShift);
+}
+
+void CircleShootApp::FinishInvisibleDialog(bool apply)
+{
+    InvisibleDialog *invisibleDialog = (InvisibleDialog *)GetDialog(DialogType_Invisible);
+    ModesDialog *modesDialog = (ModesDialog *)GetDialog(DialogType_Modes);
+    if (invisibleDialog == NULL)
+        return;
+
+    if (apply)
+    {
+        if (modesDialog != NULL)
+        {
+            modesDialog->SetInvisibleDurationSec(invisibleDialog->GetDurationSec());
+            modesDialog->SetInvisibleIntervalSec(invisibleDialog->GetIntervalSec());
+            modesDialog->SetInvisiblePercent(invisibleDialog->GetPercent());
+            modesDialog->SetInvisibleSelected(true);
+        }
+    }
+
+    KillDialog(DialogType_Invisible);
 }
 
 void CircleShootApp::FinishColorShiftTargetDialog(bool apply)
@@ -1654,6 +1680,9 @@ bool CircleShootApp::CheckYesNoButton(int theButton)
         case 2032:
             FinishColorShiftTargetDialog(true);
             return true;
+        case 2033:
+            FinishInvisibleDialog(true);
+            return true;
         default:
             KillDialog(theButton - 2000);
             return true;
@@ -1727,6 +1756,9 @@ bool CircleShootApp::CheckYesNoButton(int theButton)
             return true;
         case 3032:
             FinishColorShiftTargetDialog(false);
+            return true;
+        case 3033:
+            FinishInvisibleDialog(false);
             return true;
         default:
             KillDialog(theButton - 3000);
