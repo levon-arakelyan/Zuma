@@ -162,6 +162,8 @@ void SpriteMgr::SetupLevel(const LevelDesc &theLevel, MirrorType theMirror)
 {
     mStarList.clear();
     mNumHoles = 0;
+    for (int h = 0; h < 3; h++)
+        mHoleMappings[h] = -1;
     mUpdateCnt = 0;
 
     int aStarColors[] = {
@@ -555,19 +557,33 @@ void SpriteMgr::PlaceHole(int theCurveNum, int theX, int theY, float theRotation
     if (thePriority >= MAX_PRIORITY)
         thePriority = MAX_PRIORITY - 1;
 
-    int i;
-    for (i = 0; i < mNumHoles; i++)
-    {
-        HoleInfo &aHole = mHoleInfo[i];
+    // Vanilla merges nearby skulls into one sprite (multi-path → one hole).
+    // Moving-hole mode needs a sprite per curve so each path can crawl separately.
+    bool forceUnique = GetCircleShootApp()->mMovingHoleMode;
 
-        if ((aHole.my - aCornerY) * (aHole.my - aCornerY) + (aHole.mx - aCornerX) * (aHole.mx - aCornerX) < 400)
+    int i;
+    if (!forceUnique)
+    {
+        for (i = 0; i < mNumHoles; i++)
         {
-            break;
+            HoleInfo &aHole = mHoleInfo[i];
+
+            if ((aHole.my - aCornerY) * (aHole.my - aCornerY) + (aHole.mx - aCornerX) * (aHole.mx - aCornerX) < 400)
+            {
+                break;
+            }
         }
+    }
+    else
+    {
+        i = mNumHoles;
     }
 
     if (i == mNumHoles)
     {
+        if (mNumHoles >= 3)
+            return;
+
         HoleInfo &aHole = mHoleInfo[i];
 
         aHole.mx = aCornerX;
@@ -602,6 +618,44 @@ void SpriteMgr::MoveHole(int theCurveNum, int theX, int theY, float theRotation,
     int holeIdx = mHoleMappings[theCurveNum];
     if (holeIdx < 0 || holeIdx >= mNumHoles)
         return;
+
+    // If this curve still shares a merged skull with another path, split it so
+    // crawling doesn't steal the only sprite (e.g. level 12.5 two-path skull).
+    if (GetCircleShootApp()->mMovingHoleMode && mNumHoles < 3)
+    {
+        bool shared = false;
+        for (int c = 0; c < 3; c++)
+        {
+            if (c != theCurveNum && mHoleMappings[c] == holeIdx)
+            {
+                shared = true;
+                break;
+            }
+        }
+
+        if (shared)
+        {
+            HoleInfo &src = mHoleInfo[holeIdx];
+            HoleInfo &dst = mHoleInfo[mNumHoles];
+            dst.mx = src.mx;
+            dst.my = src.my;
+            dst.mFrame = src.mFrame;
+            dst.mTotalBrightness = 0;
+            dst.mImageFrame = src.mImageFrame;
+            dst.mRotation = src.mRotation;
+            dst.mDrawPriority = src.mDrawPriority;
+            for (int j = 0; j < 3; j++)
+            {
+                dst.mPercentOpen[j] = 0.0f;
+                dst.mBrightness[j] = 0;
+            }
+            dst.mPercentOpen[theCurveNum] = src.mPercentOpen[theCurveNum];
+            dst.mBrightness[theCurveNum] = src.mBrightness[theCurveNum];
+            mHoleMappings[theCurveNum] = mNumHoles;
+            holeIdx = mNumHoles;
+            mNumHoles++;
+        }
+    }
 
     // NaN/Inf would infinite-loop in the angle wrap below.
     if (!(theRotation >= -1000.0f && theRotation <= 1000.0f))

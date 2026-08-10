@@ -270,14 +270,8 @@ void CurveMgr::UpdateHoleAtEffectiveEnd()
 
 int CurveMgr::GetMovingHoleMinEnd() const
 {
-    int realEnd = mWayPointMgr->GetEndPoint();
-    // Keep at least ~15% of the path so the level stays playable for a while.
-    int minEnd = realEnd / 7;
-    if (minEnd < 50)
-        minEnd = 50;
-    if (minEnd > realEnd)
-        minEnd = realEnd;
-    return minEnd;
+    // Crawl all the way to the path start (frog end).
+    return 0;
 }
 
 int CurveMgr::GetMovingHoleStepSize() const
