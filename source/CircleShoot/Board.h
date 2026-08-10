@@ -198,6 +198,7 @@ namespace Sexy
 		void UpdateBallColorMap(Ball *theBall, bool added);
 		void UpdateGuide();
 		void UpdateTreasure();
+		void UpdateColorShift();
 		void UpdateMiscStuff();
 
 		void DrawTreasure(Graphics *g);

@@ -167,6 +167,7 @@ namespace Sexy
 		int DrawEndLevelBonus(int theStagger);
 		bool HasReachedCruisingSpeed();
 		void AddPowerUp(PowerType thePower);
+		void ApplyColorShift(const int theMap[MAX_BALL_COLORS]);
 
 		void SyncState(DataSync &theSync);
 		void RestoreMovingHoleAfterLoad();

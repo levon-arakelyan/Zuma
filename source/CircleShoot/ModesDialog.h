@@ -47,6 +47,7 @@ namespace Sexy
             Mode_GapFree,
             Mode_ChainCount,
             Mode_Bankrupt,
+            Mode_ColorShift,
             Mode_Count
         };
     }
@@ -120,6 +121,7 @@ namespace Sexy
         bool IsGapFreeSelected() const;
         bool IsChainCountSelected() const;
         bool IsBankruptSelected() const;
+        bool IsColorShiftSelected() const;
 
         void GetBannedColors(bool outBanned[MAX_BALL_COLORS]) const;
         void SetBannedColors(const bool banned[MAX_BALL_COLORS]);
@@ -149,6 +151,16 @@ namespace Sexy
         void SetChainBonusDisabled(bool disabled);
         void SetChainCountSelected(bool selected);
 
+        float GetColorShiftHz() const;
+        void SetColorShiftHz(float hz);
+        void GetColorShiftMap(int outMap[MAX_BALL_COLORS]) const;
+        void SetColorShiftMap(const int theMap[MAX_BALL_COLORS]);
+        void GetColorShiftEnabled(bool outEnabled[MAX_BALL_COLORS]) const;
+        void SetColorShiftEnabled(const bool theEnabled[MAX_BALL_COLORS]);
+        bool GetColorShiftRandom() const;
+        void SetColorShiftRandom(bool random);
+        void SetColorShiftSelected(bool selected);
+
         void PrepareClose();
 
         // Named aliases kept for CircleShootApp / Finish* helpers
@@ -165,6 +177,7 @@ namespace Sexy
         Checkbox *mGapFreeCheckbox;
         Checkbox *mChainCountCheckbox;
         Checkbox *mBankruptCheckbox;
+        Checkbox *mColorShiftCheckbox;
 
         ModeWidgetSlot mModeSlots[ModesCatalog::Mode_Count];
 
@@ -182,6 +195,10 @@ namespace Sexy
         bool mPendingMaxPowerQuietSounds;
         int mPendingChainBonusThreshold;
         bool mPendingChainBonusDisabled;
+        float mPendingColorShiftHz;
+        int mPendingColorShiftMap[MAX_BALL_COLORS];
+        bool mPendingColorShiftRandom;
+        bool mPendingColorShiftEnabled[MAX_BALL_COLORS];
         int mHoveredHitId;
         int mSelectedGroupIndex;
         int mDividerX;

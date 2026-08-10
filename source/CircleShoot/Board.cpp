@@ -607,6 +607,7 @@ void Board::UpdatePlaying()
 
     UpdateBullets();
     UpdateTreasure();
+    UpdateColorShift();
 
     if (mLevelBeginning)
     {
@@ -944,6 +945,65 @@ void Board::UpdateTreasure()
     }
 
     gForceTreasure = false;
+}
+
+void Board::UpdateColorShift()
+{
+    CircleShootApp *app = GetCircleShootApp();
+    if (app == NULL || !app->mColorShiftMode)
+        return;
+
+    float intervalSec = app->mColorShiftHz;
+    if (intervalSec < 1.0f)
+        intervalSec = 1.0f;
+    if (intervalSec > 10.0f)
+        intervalSec = 10.0f;
+
+    // Board updates ~100 times per second.
+    int interval = (int)(intervalSec * 100.0f + 0.5f);
+    if (interval < 1)
+        interval = 1;
+
+    if (mStateCount == 0 || (mStateCount % interval) != 0)
+        return;
+
+    int map[MAX_BALL_COLORS];
+    if (app->mColorShiftRandom)
+    {
+        int order[MAX_BALL_COLORS];
+        for (int i = 0; i < MAX_BALL_COLORS; i++)
+            order[i] = i;
+
+        for (int i = MAX_BALL_COLORS - 1; i > 0; i--)
+        {
+            int j = Sexy::AppRand() % (i + 1);
+            int tmp = order[i];
+            order[i] = order[j];
+            order[j] = tmp;
+        }
+
+        for (int i = 0; i < MAX_BALL_COLORS; i++)
+            map[i] = order[i];
+    }
+    else
+    {
+        for (int i = 0; i < MAX_BALL_COLORS; i++)
+        {
+            if (!app->mColorShiftEnabled[i])
+            {
+                map[i] = i;
+                continue;
+            }
+
+            int dest = app->mColorShiftMap[i];
+            if (dest < 0 || dest >= MAX_BALL_COLORS)
+                dest = (i + 1) % MAX_BALL_COLORS;
+            map[i] = dest;
+        }
+    }
+
+    for (int i = 0; i < mNumCurves; i++)
+        mCurveMgr[i]->ApplyColorShift(map);
 }
 
 void Board::UpdateMiscStuff()

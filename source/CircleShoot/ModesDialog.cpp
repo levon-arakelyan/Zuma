@@ -73,6 +73,8 @@ namespace ModesCatalog
         "Choose how many clears in a row are required before the chain bonus starts (1-20). Optionally disable the chain bonus entirely.";
     const char *const kBankruptDescription =
         "No coins appear. It never spawns during the level.";
+    const char *const kColorShiftDescription =
+        "All balls on the rolling chain periodically change color. Enable colors to shift, choose each destination, set the interval (1-10 sec), or use random remapping.";
 
     // --- Widget ids ---
     const int kGroupListId = 0;
@@ -108,6 +110,7 @@ namespace ModesCatalog
         {Mode_MovingHole, Group_Challenges, "Moving hole", kMovingHoleDescription, true},
         {Mode_Sonic, Group_Challenges, "Sonic speed", kSonicDescription, true},
         {Mode_UglyChain, Group_Challenges, "Ugly chain", kUglyChainDescription, false},
+        {Mode_ColorShift, Group_Challenges, "Color shift", kColorShiftDescription, true},
         {Mode_Unpowered, Group_GameMechanics, "Unpowered", kUnpoweredDescription, true},
         {Mode_NoSwap, Group_GameMechanics, "No swap", kNoSwapDescription, false},
         {Mode_Comboless, Group_GameMechanics, "Comboless", kCombolessDescription, false},
@@ -291,6 +294,7 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
     mGapFreeCheckbox = mModeSlots[ModesCatalog::Mode_GapFree].mCheckbox;
     mChainCountCheckbox = mModeSlots[ModesCatalog::Mode_ChainCount].mCheckbox;
     mBankruptCheckbox = mModeSlots[ModesCatalog::Mode_Bankrupt].mCheckbox;
+    mColorShiftCheckbox = mModeSlots[ModesCatalog::Mode_ColorShift].mCheckbox;
 
     CircleShootApp *app = GetCircleShootApp();
     if (mColorsBanCheckbox != NULL)
@@ -319,6 +323,8 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
         mChainCountCheckbox->mChecked = app->mChainCountMode;
     if (mBankruptCheckbox != NULL)
         mBankruptCheckbox->mChecked = app->mBankruptMode;
+    if (mColorShiftCheckbox != NULL)
+        mColorShiftCheckbox->mChecked = app->mColorShiftMode;
 
     for (int i = 0; i < MAX_BALL_COLORS; i++)
         mPendingBannedColors[i] = app->mBannedColors[i];
@@ -332,6 +338,15 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
     if (mPendingChainBonusThreshold < 1 || mPendingChainBonusThreshold > 20)
         mPendingChainBonusThreshold = 5;
     mPendingChainBonusDisabled = app->mChainBonusDisabled;
+    mPendingColorShiftHz = app->mColorShiftHz;
+    if (mPendingColorShiftHz < 1.0f || mPendingColorShiftHz > 10.0f)
+        mPendingColorShiftHz = 1.0f;
+    for (int i = 0; i < MAX_BALL_COLORS; i++)
+    {
+        mPendingColorShiftMap[i] = app->mColorShiftMap[i];
+        mPendingColorShiftEnabled[i] = app->mColorShiftEnabled[i];
+    }
+    mPendingColorShiftRandom = app->mColorShiftRandom;
 
     for (int i = 0; i < ModesCatalog::kGroupCount; i++)
         mGroupList->AddLine(ModesCatalog::kGroups[i].name, false);
@@ -364,6 +379,7 @@ ModesDialog::~ModesDialog()
     mGapFreeCheckbox = NULL;
     mChainCountCheckbox = NULL;
     mBankruptCheckbox = NULL;
+    mColorShiftCheckbox = NULL;
 
     delete mModesPane;
     mModesPane = NULL;
@@ -419,6 +435,7 @@ void ModesDialog::PrepareClose()
     mGapFreeCheckbox = NULL;
     mChainCountCheckbox = NULL;
     mBankruptCheckbox = NULL;
+    mColorShiftCheckbox = NULL;
 
     delete mModesPane;
     mModesPane = NULL;
@@ -730,6 +747,8 @@ void ModesDialog::CheckboxChecked(int theId, bool checked)
         app->DoMaxPowerDialog();
     else if (def->id == ModesCatalog::Mode_ChainCount)
         app->DoChainCountDialog();
+    else if (def->id == ModesCatalog::Mode_ColorShift)
+        app->DoColorShiftDialog();
 
     MarkDirty();
 }
@@ -897,6 +916,11 @@ bool ModesDialog::IsBankruptSelected() const
     return mBankruptCheckbox != NULL && mBankruptCheckbox->IsChecked();
 }
 
+bool ModesDialog::IsColorShiftSelected() const
+{
+    return mColorShiftCheckbox != NULL && mColorShiftCheckbox->IsChecked();
+}
+
 void ModesDialog::GetBannedColors(bool outBanned[MAX_BALL_COLORS]) const
 {
     for (int i = 0; i < MAX_BALL_COLORS; i++)
@@ -1028,6 +1052,68 @@ void ModesDialog::SetChainCountSelected(bool selected)
 {
     if (mChainCountCheckbox != NULL)
         mChainCountCheckbox->SetChecked(selected, false);
+    MarkDirty();
+}
+
+float ModesDialog::GetColorShiftHz() const
+{
+    return mPendingColorShiftHz;
+}
+
+void ModesDialog::SetColorShiftHz(float hz)
+{
+    if (hz < 1.0f)
+        hz = 1.0f;
+    if (hz > 10.0f)
+        hz = 10.0f;
+    mPendingColorShiftHz = hz;
+}
+
+void ModesDialog::GetColorShiftMap(int outMap[MAX_BALL_COLORS]) const
+{
+    for (int i = 0; i < MAX_BALL_COLORS; i++)
+        outMap[i] = mPendingColorShiftMap[i];
+}
+
+void ModesDialog::SetColorShiftMap(const int theMap[MAX_BALL_COLORS])
+{
+    for (int i = 0; i < MAX_BALL_COLORS; i++)
+    {
+        int dest = theMap[i];
+        if (dest < 0 || dest >= MAX_BALL_COLORS)
+            dest = (i + 1) % MAX_BALL_COLORS;
+        mPendingColorShiftMap[i] = dest;
+    }
+}
+
+void ModesDialog::GetColorShiftEnabled(bool outEnabled[MAX_BALL_COLORS]) const
+{
+    for (int i = 0; i < MAX_BALL_COLORS; i++)
+        outEnabled[i] = mPendingColorShiftEnabled[i];
+}
+
+void ModesDialog::SetColorShiftEnabled(const bool theEnabled[MAX_BALL_COLORS])
+{
+    if (theEnabled == NULL)
+        return;
+    for (int i = 0; i < MAX_BALL_COLORS; i++)
+        mPendingColorShiftEnabled[i] = theEnabled[i];
+}
+
+bool ModesDialog::GetColorShiftRandom() const
+{
+    return mPendingColorShiftRandom;
+}
+
+void ModesDialog::SetColorShiftRandom(bool random)
+{
+    mPendingColorShiftRandom = random;
+}
+
+void ModesDialog::SetColorShiftSelected(bool selected)
+{
+    if (mColorShiftCheckbox != NULL)
+        mColorShiftCheckbox->SetChecked(selected, false);
     MarkDirty();
 }
 

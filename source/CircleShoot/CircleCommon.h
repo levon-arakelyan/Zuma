@@ -81,6 +81,8 @@ namespace Sexy
         DialogType_MovingHole = 28,
         DialogType_MaxPower = 29,
         DialogType_ChainCount = 30,
+        DialogType_ColorShift = 31,
+        DialogType_ColorShiftTarget = 32,
         DialogType_Max,
     };
 

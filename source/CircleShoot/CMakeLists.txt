@@ -30,6 +30,8 @@ add_executable(Zuma WIN32
     MovingHoleDialog.cpp
     MaxPowerDialog.cpp
     ChainCountDialog.cpp
+    ColorShiftDialog.cpp
+    ColorShiftTargetDialog.cpp
     ConfirmContinueDialog.cpp
     MoreGamesScreen.cpp
     OptionsDialog.cpp

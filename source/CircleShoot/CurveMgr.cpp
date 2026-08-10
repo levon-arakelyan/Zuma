@@ -2517,3 +2517,46 @@ void CurveMgr::RollBallsIn()
         mAdvanceSpeed = aSpeed;
     }
 }
+
+void CurveMgr::ApplyColorShift(const int theMap[MAX_BALL_COLORS])
+{
+    if (theMap == NULL)
+        return;
+
+    for (BallList::iterator anItr = mBallList.begin(); anItr != mBallList.end(); ++anItr)
+    {
+        Ball *aBall = *anItr;
+        if (aBall == NULL || aBall->GetClearCount() != 0)
+            continue;
+
+        int src = aBall->GetType();
+        if (src < 0 || src >= MAX_BALL_COLORS)
+            continue;
+
+        int dest = theMap[src];
+        if (dest < 0 || dest >= MAX_BALL_COLORS || dest == src)
+            continue;
+
+        mBoard->UpdateBallColorMap(aBall, false);
+        aBall->BeginColorShift(dest);
+        mBoard->UpdateBallColorMap(aBall, true);
+    }
+
+    for (BallList::iterator anItr = mPendingBalls.begin(); anItr != mPendingBalls.end(); ++anItr)
+    {
+        Ball *aBall = *anItr;
+        if (aBall == NULL)
+            continue;
+
+        int src = aBall->GetType();
+        if (src < 0 || src >= MAX_BALL_COLORS)
+            continue;
+
+        int dest = theMap[src];
+        if (dest < 0 || dest >= MAX_BALL_COLORS || dest == src)
+            continue;
+
+        // Pending balls aren't on-screen yet — snap instantly.
+        aBall->SetType(dest);
+    }
+}

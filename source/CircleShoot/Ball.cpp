@@ -14,6 +14,8 @@
 
 using namespace Sexy;
 
+const int Ball::COLOR_SHIFT_BLEND_FRAMES = 30; // 0.3s at ~100 updates/sec
+
 BlendedImage *gBlendedBombLights[MAX_BALL_COLORS];
 BlendedImage *gBlendedPowerupLights[4];
 BlendedImage *gBlendedPowerups[4][MAX_BALL_COLORS];
@@ -114,6 +116,8 @@ Ball::Ball()
     mId = ++mIdGen;
     mx = my = 0.0f;
     mType = 0;
+    mColorShiftFrom = -1;
+    mColorShiftFrame = 0;
     mBullet = NULL;
     mList = NULL;
     mCollidesWithNext = false;
@@ -274,6 +278,13 @@ void Ball::SetRotation(float theRot, bool immediate)
 
 void Ball::UpdateRotation()
 {
+    if (mColorShiftFrom >= 0)
+    {
+        ++mColorShiftFrame;
+        if (mColorShiftFrame >= COLOR_SHIFT_BLEND_FRAMES)
+            mColorShiftFrom = -1;
+    }
+
     if (mPowerFade > 0)
     {
         --mPowerFade;
@@ -730,25 +741,74 @@ void Ball::DrawExplosion(Graphics *g)
     }
 }
 
+void Ball::BeginColorShift(int theNewType)
+{
+    if (theNewType < 0 || theNewType >= MAX_BALL_COLORS)
+        return;
+    if (theNewType == mType)
+        return;
+
+    mColorShiftFrom = mType;
+    mColorShiftFrame = 0;
+    mType = theNewType;
+}
+
+void Ball::DrawBallType(Graphics *g, int theType, int theAlpha)
+{
+    if (theType < 0 || theType >= MAX_BALL_COLORS || theAlpha <= 0)
+        return;
+
+    Image *image = Sexy::GetImageById((ResourceId)(theType + Sexy::IMAGE_BLUE_BALL_ID));
+    if (image == NULL)
+        return;
+
+    float aBallX = mx - 16.0f;
+    float aBallY = my - 16.0f;
+    bool colorize = theAlpha < 255;
+    if (colorize)
+    {
+        g->SetColorizeImages(true);
+        g->SetColor(Color(255, 255, 255, theAlpha));
+    }
+
+    if (gSexyAppBase->Is3DAccelerated())
+    {
+        int aCelHeight = image->mHeight / image->mNumRows;
+        int aFrame = (mStartFrame + (int)mWayPoint) % image->mNumRows;
+        Rect aRect(0, aFrame * aCelHeight, image->mWidth, aCelHeight);
+        g->DrawImageRotatedF(image, aBallX, aBallY, mRotation, &aRect);
+    }
+    else
+    {
+        BlendedImage *aBlendedBall = CreateBlendedBall(theType);
+        aBlendedBall->Draw(g, aBallX, aBallY);
+    }
+
+    if (colorize)
+        g->SetColorizeImages(false);
+}
+
 void Ball::DoDraw(Graphics *g)
 {
     if (mPowerType == PowerType_None)
     {
-        Image *image = Sexy::GetImageById((ResourceId)(mType + Sexy::IMAGE_BLUE_BALL_ID));
-        float aBallX = mx - 16.0f;
-        float aBallY = my - 16.0f;
-        int aFrame = (mStartFrame + (int)mWayPoint) % image->mNumRows;
-
-        if (gSexyAppBase->Is3DAccelerated())
+        if (mColorShiftFrom >= 0 && mColorShiftFrom < MAX_BALL_COLORS &&
+            mColorShiftFrom != mType)
         {
-            int aCelHeight = image->mHeight / image->mNumRows;
-            Rect aRect(0, aFrame * aCelHeight, image->mWidth, aCelHeight);
-            g->DrawImageRotatedF(image, aBallX, aBallY, mRotation, &aRect);
+            float t = (float)mColorShiftFrame / (float)COLOR_SHIFT_BLEND_FRAMES;
+            if (t < 0.0f)
+                t = 0.0f;
+            if (t > 1.0f)
+                t = 1.0f;
+
+            int fromAlpha = (int)((1.0f - t) * 255.0f + 0.5f);
+            int toAlpha = (int)(t * 255.0f + 0.5f);
+            DrawBallType(g, mColorShiftFrom, fromAlpha);
+            DrawBallType(g, mType, toAlpha);
         }
         else
         {
-            BlendedImage *aBlendedBall = CreateBlendedBall(mType);
-            aBlendedBall->Draw(g, aBallX, aBallY);
+            DrawBallType(g, mType, 255);
         }
     }
     else

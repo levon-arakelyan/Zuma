@@ -79,6 +79,11 @@ namespace Sexy
         int mChainBonusThreshold; // 1-20 clears before chain bonus
         bool mChainBonusDisabled;
         bool mBankruptMode;
+        bool mColorShiftMode;
+        float mColorShiftHz; // seconds between color shifts (1-10, step 0.25)
+        int mColorShiftMap[MAX_BALL_COLORS];
+        bool mColorShiftRandom;
+        bool mColorShiftEnabled[MAX_BALL_COLORS];
 
         bool IsColorBanned(int theColor) const;
         bool IsPowerUpDisabled(int thePowerType) const;
@@ -133,6 +138,8 @@ namespace Sexy
         void DoMovingHoleDialog();
         void DoMaxPowerDialog();
         void DoChainCountDialog();
+        void DoColorShiftDialog();
+        void DoColorShiftTargetDialog(int theSrcColor, int initialDest);
         void DoModeHelpDialog(const std::string &theTitle, const std::string &theDescription);
         void DoConfirmContinueDialog(const std::string &theVerboseLevelString, const std::string &theDisplayName, int theScore);
         void DoGetReadyDialog();
@@ -159,6 +166,8 @@ namespace Sexy
         void FinishMovingHoleDialog(bool apply);
         void FinishMaxPowerDialog(bool apply);
         void FinishChainCountDialog(bool apply);
+        void FinishColorShiftDialog(bool apply);
+        void FinishColorShiftTargetDialog(bool apply);
         void FinishConfirmMainMenuDialog(bool mainMenu);
         void FinishStatsDialog(bool);
 
