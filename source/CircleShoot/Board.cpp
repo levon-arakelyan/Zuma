@@ -1917,6 +1917,19 @@ void Board::Reset(bool gameOver, bool isLevelReset)
     mBallColorMap.clear();
     mGun->EmptyBullets();
 
+    // After level desc is ready: ban only colors that appear on this level.
+    int poolSize = 0;
+    if (mLevelDesc != NULL)
+    {
+        for (int i = 0; i < mLevelDesc->GetNumCurves(); i++)
+        {
+            int n = mLevelDesc->mCurveDesc[i].mNumColors;
+            if (n > poolSize)
+                poolSize = n;
+        }
+    }
+    mApp->RollRandomBannedColors(poolSize);
+
     for (int i = 0; i < mNumCurves; i++)
     {
         mCurveMgr[i]->StartLevel();

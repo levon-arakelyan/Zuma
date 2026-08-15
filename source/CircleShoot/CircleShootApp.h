@@ -88,8 +88,12 @@ namespace Sexy
         float mInvisibleDurationSec; // how long balls stay invisible
         float mInvisibleIntervalSec; // how often a new invisibility wave starts
         int mInvisiblePercent;       // 4-100, step 2: share of chain balls per wave
+        bool mColorsBanRandom;       // pick random banned colors each round
+        int mColorsBanRandomCount;   // 1-5 colors banned when random is on
+        bool mActiveBannedColors[MAX_BALL_COLORS]; // effective bans for current round
 
         bool IsColorBanned(int theColor) const;
+        void RollRandomBannedColors(int theNumColors = -1);
         bool IsPowerUpDisabled(int thePowerType) const;
         float GetChainSpeedMultiplier() const;
 

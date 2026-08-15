@@ -127,6 +127,10 @@ namespace Sexy
 
         void GetBannedColors(bool outBanned[MAX_BALL_COLORS]) const;
         void SetBannedColors(const bool banned[MAX_BALL_COLORS]);
+        bool GetColorsBanRandom() const;
+        void SetColorsBanRandom(bool random);
+        int GetColorsBanRandomCount() const;
+        void SetColorsBanRandomCount(int count);
         void SetColorsBanSelected(bool selected);
 
         void GetDisabledPowerUps(bool outDisabled[PowerType_Max]) const;
@@ -213,6 +217,8 @@ namespace Sexy
         float mPendingInvisibleDurationSec;
         float mPendingInvisibleIntervalSec;
         int mPendingInvisiblePercent;
+        bool mPendingColorsBanRandom;
+        int mPendingColorsBanRandomCount;
         int mHoveredHitId;
         int mSelectedGroupIndex;
         int mDividerX;

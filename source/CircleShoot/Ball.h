@@ -83,6 +83,8 @@ namespace Sexy
 		void DrawExplosion(Graphics *g);
 		void DoDraw(Graphics *g);
 		void DrawBallType(Graphics *g, int theType, int theAlpha);
+		bool ShouldEmphasizeBanned() const;
+		void DrawBannedCross(Graphics *g);
 
 	public:
 		static const int COLOR_SHIFT_BLEND_FRAMES; // 0.3s at ~100 UPS

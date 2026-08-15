@@ -84,8 +84,13 @@ CircleShootApp::CircleShootApp()
     mMaxPlays = 0;
     mMaxTime = 0;
     mColorsBanMode = false;
+    mColorsBanRandom = false;
+    mColorsBanRandomCount = 1;
     for (int i = 0; i < MAX_BALL_COLORS; i++)
+    {
         mBannedColors[i] = false;
+        mActiveBannedColors[i] = false;
+    }
     mUnpoweredMode = false;
     for (int i = 0; i < PowerType_Max; i++)
         mDisabledPowerUps[i] = false;
@@ -986,15 +991,21 @@ void CircleShootApp::DoColorsBanDialog()
 
     ModesDialog *modes = (ModesDialog *)GetDialog(DialogType_Modes);
     bool initialBanned[MAX_BALL_COLORS];
+    bool initialRandom = mColorsBanRandom;
+    int initialCount = mColorsBanRandomCount;
     if (modes != NULL)
+    {
         modes->GetBannedColors(initialBanned);
+        initialRandom = modes->GetColorsBanRandom();
+        initialCount = modes->GetColorsBanRandomCount();
+    }
     else
     {
         for (int i = 0; i < MAX_BALL_COLORS; i++)
             initialBanned[i] = mBannedColors[i];
     }
 
-    Dialog *dialog = new ColorsBanDialog(initialBanned);
+    Dialog *dialog = new ColorsBanDialog(initialBanned, initialRandom, initialCount);
     SetupDialog(dialog, 400);
     AddDialog(DialogType_ColorsBan, dialog);
 }
@@ -1284,6 +1295,8 @@ void CircleShootApp::FinishModesDialog(bool apply)
     float invisibleDurationSec = 3.0f;
     float invisibleIntervalSec = 5.0f;
     int invisiblePercent = 50;
+    bool colorsBanRandom = false;
+    int colorsBanRandomCount = 1;
     for (int i = 0; i < MAX_BALL_COLORS; i++)
     {
         colorShiftMap[i] = (i + 1) % MAX_BALL_COLORS;
@@ -1294,6 +1307,8 @@ void CircleShootApp::FinishModesDialog(bool apply)
     {
         colorsBan = dialog->IsColorsBanSelected();
         dialog->GetBannedColors(bannedColors);
+        colorsBanRandom = dialog->GetColorsBanRandom();
+        colorsBanRandomCount = dialog->GetColorsBanRandomCount();
         unpowered = dialog->IsUnpoweredSelected();
         dialog->GetDisabledPowerUps(disabledPowerUps);
         noSwap = dialog->IsNoSwapSelected();
@@ -1343,6 +1358,9 @@ void CircleShootApp::FinishModesDialog(bool apply)
         mColorsBanMode = colorsBan;
         for (int i = 0; i < MAX_BALL_COLORS; i++)
             mBannedColors[i] = bannedColors[i];
+        mColorsBanRandom = colorsBanRandom;
+        mColorsBanRandomCount = colorsBanRandomCount;
+        RollRandomBannedColors();
 
         mUnpoweredMode = unpowered;
         for (int i = 0; i < PowerType_Max; i++)
@@ -1395,6 +1413,8 @@ void CircleShootApp::FinishColorsBanDialog(bool apply)
         if (modesDialog != NULL)
         {
             modesDialog->SetBannedColors(banned);
+            modesDialog->SetColorsBanRandom(colorsDialog->GetRandom());
+            modesDialog->SetColorsBanRandomCount(colorsDialog->GetRandomCount());
             modesDialog->SetColorsBanSelected(true);
         }
     }
@@ -1572,7 +1592,57 @@ bool CircleShootApp::IsColorBanned(int theColor) const
     if (!mColorsBanMode || theColor < 0 || theColor >= MAX_BALL_COLORS)
         return false;
 
+    if (mColorsBanRandom)
+        return mActiveBannedColors[theColor];
+
     return mBannedColors[theColor];
+}
+
+void CircleShootApp::RollRandomBannedColors(int theNumColors)
+{
+    for (int i = 0; i < MAX_BALL_COLORS; i++)
+        mActiveBannedColors[i] = false;
+
+    if (!mColorsBanMode)
+        return;
+
+    if (!mColorsBanRandom)
+    {
+        for (int i = 0; i < MAX_BALL_COLORS; i++)
+            mActiveBannedColors[i] = mBannedColors[i];
+        return;
+    }
+
+    // Only ban colors that can actually appear on this level's chains.
+    int poolSize = theNumColors;
+    if (poolSize < 2)
+        poolSize = 4;
+    if (poolSize > MAX_BALL_COLORS)
+        poolSize = MAX_BALL_COLORS;
+
+    int count = mColorsBanRandomCount;
+    if (count < 1)
+        count = 1;
+    if (count > 5)
+        count = 5;
+    if (count > poolSize - 1)
+        count = poolSize - 1;
+    if (count < 1)
+        return;
+
+    // Shuffle the in-level color pool and take the first `count`.
+    int order[MAX_BALL_COLORS];
+    for (int i = 0; i < poolSize; i++)
+        order[i] = i;
+    for (int i = poolSize - 1; i > 0; i--)
+    {
+        int j = Sexy::AppRand() % (i + 1);
+        int tmp = order[i];
+        order[i] = order[j];
+        order[j] = tmp;
+    }
+    for (int i = 0; i < count; i++)
+        mActiveBannedColors[order[i]] = true;
 }
 
 bool CircleShootApp::IsPowerUpDisabled(int thePowerType) const

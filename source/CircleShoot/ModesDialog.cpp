@@ -48,7 +48,7 @@ namespace ModesCatalog
 
     // --- Descriptions ---
     const char *const kColorsBanDescription =
-        "Choose which colors you cannot destroy directly. Matching three or more of a banned color causes you to lose.";
+        "Choose which colors you cannot destroy directly, or randomly ban 1-5 colors each round. Matching three or more of a banned color causes you to lose.";
     const char *const kUnpoweredDescription =
         "Choose which power-ups are disabled and will not appear on the chain.";
     const char *const kNoSwapDescription =
@@ -334,6 +334,10 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
 
     for (int i = 0; i < MAX_BALL_COLORS; i++)
         mPendingBannedColors[i] = app->mBannedColors[i];
+    mPendingColorsBanRandom = app->mColorsBanRandom;
+    mPendingColorsBanRandomCount = app->mColorsBanRandomCount;
+    if (mPendingColorsBanRandomCount < 1 || mPendingColorsBanRandomCount > 5)
+        mPendingColorsBanRandomCount = 1;
     for (int i = 0; i < PowerType_Max; i++)
         mPendingDisabledPowerUps[i] = app->mDisabledPowerUps[i];
     mPendingChainSpeedMultiplier = app->mChainSpeedMultiplier;
@@ -975,6 +979,30 @@ void ModesDialog::SetColorsBanSelected(bool selected)
     if (mColorsBanCheckbox != NULL)
         mColorsBanCheckbox->SetChecked(selected, false);
     MarkDirty();
+}
+
+bool ModesDialog::GetColorsBanRandom() const
+{
+    return mPendingColorsBanRandom;
+}
+
+void ModesDialog::SetColorsBanRandom(bool random)
+{
+    mPendingColorsBanRandom = random;
+}
+
+int ModesDialog::GetColorsBanRandomCount() const
+{
+    return mPendingColorsBanRandomCount;
+}
+
+void ModesDialog::SetColorsBanRandomCount(int count)
+{
+    if (count < 1)
+        count = 1;
+    if (count > 5)
+        count = 5;
+    mPendingColorsBanRandomCount = count;
 }
 
 void ModesDialog::GetDisabledPowerUps(bool outDisabled[PowerType_Max]) const

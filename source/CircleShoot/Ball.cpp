@@ -7,6 +7,7 @@
 
 #include "Ball.h"
 #include "BlendedImage.h"
+#include "CircleShootApp.h"
 #include "DataSync.h"
 #include "Res.h"
 
@@ -473,12 +474,17 @@ void Ball::Draw(Graphics *g)
         return;
     }
 
+    bool banned = ShouldEmphasizeBanned();
+
     // Power sprites don't go through DrawBallType — tint the whole draw.
-    bool tintPower = invAlpha < 255 && mPowerType != PowerType_None && mPowerType != PowerType_Max;
+    int powerAlpha = invAlpha;
+    if (banned)
+        powerAlpha = (powerAlpha * 191 + 127) / 255; // 0.75 opacity
+    bool tintPower = powerAlpha < 255 && mPowerType != PowerType_None && mPowerType != PowerType_Max;
     if (tintPower)
     {
         g->SetColorizeImages(true);
-        g->SetColor(Color(255, 255, 255, invAlpha));
+        g->SetColor(Color(255, 255, 255, powerAlpha));
     }
 
     DoDraw(g);
@@ -488,7 +494,7 @@ void Ball::Draw(Graphics *g)
         if (tintPower)
         {
             g->SetColorizeImages(true);
-            g->SetColor(Color(255, 255, 255, invAlpha));
+            g->SetColor(Color(255, 255, 255, powerAlpha));
         }
         DoDraw(g);
     }
@@ -499,10 +505,13 @@ void Ball::Draw(Graphics *g)
         if (tintPower)
         {
             g->SetColorizeImages(true);
-            g->SetColor(Color(255, 255, 255, invAlpha));
+            g->SetColor(Color(255, 255, 255, powerAlpha));
         }
         DoDraw(g);
     }
+
+    if (banned)
+        DrawBannedCross(g);
 
     g->SetColorizeImages(false);
     g->SetDrawMode(Graphics::DRAWMODE_NORMAL);
@@ -817,6 +826,34 @@ int Ball::GetInvisibleDrawAlpha() const
     return 255 - (255 * mInvisibleFadeFrame + INVISIBLE_BLEND_FRAMES / 2) / INVISIBLE_BLEND_FRAMES;
 }
 
+bool Ball::ShouldEmphasizeBanned() const
+{
+    CircleShootApp *app = GetCircleShootApp();
+    return app != NULL && app->IsColorBanned(mType);
+}
+
+void Ball::DrawBannedCross(Graphics *g)
+{
+    // Thick black X spanning to the ball rim.
+    int cx = (int)(mx + 0.5f);
+    int cy = (int)(my + 0.5f);
+    // Diagonal half-length so endpoints sit on the circle: r / sqrt(2).
+    const int arm = (Sexy::GetDefaultBallRadius() * 1000) / 1414; // ~11 for r=16
+    const int thickness = 3;
+
+    g->SetColorizeImages(false);
+    g->SetDrawMode(Graphics::DRAWMODE_NORMAL);
+    g->SetColor(Color(0, 0, 0, 230));
+
+    for (int t = -(thickness / 2); t <= thickness / 2; t++)
+    {
+        g->DrawLineAA(cx - arm + t, cy - arm, cx + arm + t, cy + arm);
+        g->DrawLineAA(cx - arm, cy - arm + t, cx + arm, cy + arm + t);
+        g->DrawLineAA(cx + arm + t, cy - arm, cx - arm + t, cy + arm);
+        g->DrawLineAA(cx + arm, cy - arm + t, cx - arm, cy + arm + t);
+    }
+}
+
 void Ball::DrawBallType(Graphics *g, int theType, int theAlpha)
 {
     if (theType < 0 || theType >= MAX_BALL_COLORS || theAlpha <= 0)
@@ -827,6 +864,11 @@ void Ball::DrawBallType(Graphics *g, int theType, int theAlpha)
         return;
     if (invAlpha < 255)
         theAlpha = (theAlpha * invAlpha + 127) / 255;
+
+    CircleShootApp *app = GetCircleShootApp();
+    if (app != NULL && app->IsColorBanned(theType))
+        theAlpha = (theAlpha * 191 + 127) / 255; // 0.75 opacity
+
     if (theAlpha <= 0)
         return;
 
