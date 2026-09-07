@@ -7,6 +7,7 @@
 #include <SexyAppFramework/ButtonListener.h>
 #include <SexyAppFramework/Font.h>
 #include <SexyAppFramework/WidgetManager.h>
+#include <SexyAppFramework/KeyCodes.h>
 
 #include "Ball.h"
 #include "Board.h"
@@ -226,19 +227,22 @@ void Board::LoadProc()
         }
 
         CurveDrawer aCurveDrawer(mSpriteMgr);
-        for (int i = 0; i < 3; i++)
+        if (!mApp->mBaseMinimumMode)
         {
-            if (mNextLevelDesc->mCurveDesc[i].mDrawCurve && mNextLevelDesc->mCurveDesc[i].mDrawTunnels)
-                mNextCurveMgr[i]->DrawTunnel(aCurveDrawer);
-        }
+            for (int i = 0; i < 3; i++)
+            {
+                if (mNextLevelDesc->mCurveDesc[i].mDrawCurve && mNextLevelDesc->mCurveDesc[i].mDrawTunnels)
+                    mNextCurveMgr[i]->DrawTunnel(aCurveDrawer);
+            }
 
-        for (int i = 0; i < 3; i++)
-        {
-            if (mNextLevelDesc->mCurveDesc[i].mDrawCurve)
-                mNextCurveMgr[i]->DrawCurve(aCurveDrawer);
-        }
+            for (int i = 0; i < 3; i++)
+            {
+                if (mNextLevelDesc->mCurveDesc[i].mDrawCurve)
+                    mNextCurveMgr[i]->DrawCurve(aCurveDrawer);
+            }
 
-        aCurveDrawer.AddCurvesToMgr();
+            aCurveDrawer.AddCurvesToMgr();
+        }
         CreateThumbnail(mNextSpriteMgr, mNextLevelDesc);
     }
     else if (mLoadingThreadParam == 1)
@@ -1113,6 +1117,27 @@ void Board::UpdateMiscStuff()
 
 void Board::DrawTreasure(Graphics *g)
 {
+    if (mApp->mBaseMinimumMode)
+    {
+        const int kCoinColor = 0xFF8800;
+        if (mCurTreasure != NULL)
+        {
+            g->SetColor(Color(kCoinColor));
+            Sexy::FillCircle(g, mCurTreasure->x, mCurTreasure->y, 12);
+        }
+        if (mTreasureZoomFrame != 0)
+        {
+            float aScale = 1.0f + mTreasureZoomFrame / 30.0f;
+            int r = (int)(12.0f * aScale + 0.5f);
+            int a = 255 - 255 * mTreasureZoomFrame / 40;
+            if (a < 0)
+                a = 0;
+            g->SetColor(Color((kCoinColor >> 16) & 0xFF, (kCoinColor >> 8) & 0xFF, kCoinColor & 0xFF, a));
+            Sexy::FillCircle(g, mTreasureZoomX, mTreasureZoomY, r);
+        }
+        return;
+    }
+
     if (mCurTreasure != NULL)
     {
         int x = mCurTreasure->x;
@@ -1168,17 +1193,46 @@ void Board::DrawPlaying(Graphics *g)
     static BallDrawer aDrawer;
 
     mSpriteMgr->DrawBackground(g);
-    aDrawer.Reset();
 
-    if (mPauseCount == 0 || mShowBallsDuringPause)
+    if (mApp->mBaseMinimumMode)
     {
-        for (int i = 0; i < mNumCurves; i++)
+        if (mPauseCount == 0 || mShowBallsDuringPause)
         {
-            mCurveMgr[i]->DrawBalls(aDrawer);
+            // Tunnel balls under overlays; balls on top of intersections stay above.
+            for (int i = 0; i < mNumCurves; i++)
+                mCurveMgr[i]->DrawBallsInTunnel(g, true);
+            for (int i = 0; i < mNumCurves; i++)
+                mCurveMgr[i]->DrawBaseMinimumOverlays(g);
+            for (int i = 0; i < mNumCurves; i++)
+                mCurveMgr[i]->DrawBallsInTunnel(g, false);
+        }
+        else
+        {
+            for (int i = 0; i < mNumCurves; i++)
+                mCurveMgr[i]->DrawBaseMinimumOverlays(g);
+        }
+
+        if (mApp->mMovingHoleMode)
+        {
+            for (int p = 0; p < 5; p++)
+                mSpriteMgr->DrawHoles(g, p);
         }
     }
+    else
+    {
+        aDrawer.Reset();
 
-    aDrawer.Draw(g, mSpriteMgr, mParticleMgr);
+        if (mPauseCount == 0 || mShowBallsDuringPause)
+        {
+            for (int i = 0; i < mNumCurves; i++)
+            {
+                mCurveMgr[i]->DrawBalls(aDrawer);
+            }
+        }
+
+        aDrawer.Draw(g, mSpriteMgr, mParticleMgr);
+    }
+
     mGun->Draw(g);
     DrawTreasure(g);
 
@@ -1192,7 +1246,19 @@ void Board::DrawPlaying(Graphics *g)
         }
 
         g->SetColor(Color(0, 255, 255, anAlpha));
-        g->PolyFill(mGuide, 4, false);
+        if (mApp->mBaseMinimumMode)
+        {
+            // Single aim line instead of the filled triangle wedge.
+            int x0 = (mGuide[0].mX + mGuide[1].mX) / 2;
+            int y0 = (mGuide[0].mY + mGuide[1].mY) / 2;
+            int x1 = (mGuide[2].mX + mGuide[3].mX) / 2;
+            int y1 = (mGuide[2].mY + mGuide[3].mY) / 2;
+            g->DrawLineAA(x0, y0, x1, y1);
+        }
+        else
+        {
+            g->PolyFill(mGuide, 4, false);
+        }
     }
 
     DrawBullets(g);
@@ -1228,6 +1294,9 @@ void Board::DrawBullets(Graphics *g)
 
 void Board::DrawText(Graphics *g)
 {
+    if (mApp->mBaseMinimumMode)
+        return;
+
     std::string aText;
     bool v19 = false;
     int v20 = 0;
@@ -1483,7 +1552,8 @@ void Board::Draw(Graphics *g)
         DrawPlaying(g);
     }
 
-    mSpriteMgr->DrawBorder(g);
+    if (!mApp->mBaseMinimumMode)
+        mSpriteMgr->DrawBorder(g);
     DrawText(g);
 }
 
@@ -1727,6 +1797,10 @@ void Board::KeyChar(char theChar)
 void Board::KeyDown(KeyCode theKey)
 {
     Widget::KeyDown(theKey);
+
+    // Esc opens the same MENU dialog as the Menu button.
+    if (theKey == KEYCODE_ESCAPE && mDialogCount == 0)
+        mApp->DoOptionsDialog();
 }
 
 void Board::AddedToManager(WidgetManager *theManager)
@@ -1734,6 +1808,7 @@ void Board::AddedToManager(WidgetManager *theManager)
     Widget::AddedToManager(theManager);
 
     theManager->AddWidget(mMenuButton);
+    mMenuButton->SetVisible(!mApp->mBaseMinimumMode);
     theManager->AddWidget(mContinueButton);
     theManager->AddWidget(mOverlayWidget);
 }
@@ -1846,6 +1921,7 @@ void Board::Reset(bool gameOver, bool isLevelReset)
     DoAccuracy(false);
     mSoundMgr->KillAllSounds();
     mContinueButton->SetVisible(false);
+    mMenuButton->SetVisible(!mApp->mBaseMinimumMode);
 
     WaitForLoadingThread();
 

@@ -8,6 +8,7 @@
 #include <SexyAppFramework/ResourceManager.h>
 
 #include "CircleShootApp.h"
+#include "CircleCommon.h"
 #include "CurveMgr.h"
 #include "DataSync.h"
 #include "SpriteMgr.h"
@@ -816,6 +817,16 @@ void SpriteMgr::DrawHoleWithFlash(Graphics *g, int theHoleNum)
 
 void SpriteMgr::DrawBackground(Graphics *g)
 {
+    if (GetCircleShootApp()->mBaseMinimumMode)
+    {
+        g->SetColor(Color(0));
+        g->FillRect(0, 0, 640, 480);
+        // Path ends still need to be visible (gray circles via DrawHole).
+        if (!GetCircleShootApp()->mMovingHoleMode)
+            DrawHoles(g);
+        return;
+    }
+
     if (mInSpace)
     {
         DrawSpace(g);
@@ -853,6 +864,19 @@ void SpriteMgr::DrawBorder(Graphics *g)
 
 void SpriteMgr::DrawHole(Graphics *g, int theHoleNum)
 {
+    if (GetCircleShootApp()->mBaseMinimumMode)
+    {
+        // Same radius as the Base Minimum frog circle (Gun::Draw).
+        int w = Sexy::IMAGE_HOLE->mWidth;
+        int h = Sexy::IMAGE_HOLE->mHeight;
+        int cx = mHoleInfo[theHoleNum].mx + w / 2;
+        int cy = mHoleInfo[theHoleNum].my + h / 2;
+        const int kFrogRadius = 28;
+        g->SetColor(Color(0x808080));
+        Sexy::FillCircle(g, cx, cy, kFrogRadius);
+        return;
+    }
+
     int aHeight = Sexy::IMAGE_HOLE_COVER->mHeight / Sexy::IMAGE_HOLE_COVER->mNumRows;
     int aWidth = Sexy::IMAGE_HOLE_COVER->mWidth;
     Rect aRect(0, mHoleInfo[theHoleNum].mFrame * aHeight, aWidth, aHeight);

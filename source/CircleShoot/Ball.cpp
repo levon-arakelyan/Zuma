@@ -4,9 +4,11 @@
 #include <SexyAppFramework/SexyAppBase.h>
 #include <SexyAppFramework/SexyVector.h>
 #include <SexyAppFramework/Image.h>
+#include <SexyAppFramework/Font.h>
 
 #include "Ball.h"
 #include "BlendedImage.h"
+#include "CircleCommon.h"
 #include "CircleShootApp.h"
 #include "DataSync.h"
 #include "Res.h"
@@ -458,6 +460,75 @@ void Ball::SetBullet(Bullet *theBullet)
 
 void Ball::Draw(Graphics *g)
 {
+    CircleShootApp *app = GetCircleShootApp();
+    if (app != NULL && app->mBaseMinimumMode)
+    {
+        if (mClearCount != 0)
+            return;
+
+        int invAlpha = GetInvisibleDrawAlpha();
+        if (invAlpha <= 0)
+            return;
+
+        if (mColorShiftFrom >= 0 && mColorShiftFrom < MAX_BALL_COLORS && mColorShiftFrom != mType)
+        {
+            float t = (float)mColorShiftFrame / (float)COLOR_SHIFT_BLEND_FRAMES;
+            if (t < 0.0f)
+                t = 0.0f;
+            if (t > 1.0f)
+                t = 1.0f;
+            int fromAlpha = (int)((1.0f - t) * invAlpha + 0.5f);
+            int toAlpha = (int)(t * invAlpha + 0.5f);
+            DrawBallType(g, mColorShiftFrom, fromAlpha);
+            DrawBallType(g, mType, toAlpha);
+        }
+        else
+        {
+            DrawBallType(g, mType, invAlpha);
+        }
+
+        // Power-up letter on top of the circle (A/B/R/S).
+        char powerLetter = 0;
+        switch (GetPowerTypeWussy())
+        {
+        case PowerType_Accuracy:
+            powerLetter = 'A';
+            break;
+        case PowerType_Bomb:
+            powerLetter = 'B';
+            break;
+        case PowerType_MoveBackwards:
+            powerLetter = 'R';
+            break;
+        case PowerType_SlowDown:
+            powerLetter = 'S';
+            break;
+        default:
+            break;
+        }
+        if (powerLetter != 0 && Sexy::FONT_DIALOG != NULL)
+        {
+            std::string aLabel(1, powerLetter);
+            int cx = (int)(mx + 0.5f);
+            int cy = (int)(my + 0.5f);
+            int tw = Sexy::FONT_DIALOG->StringWidth(aLabel);
+            int baseline = cy + Sexy::FONT_DIALOG->GetAscent() / 2 - 1;
+            g->SetFont(Sexy::FONT_DIALOG);
+            // Contrast against ball fill color.
+            uint c = Sexy::gBallColors[mType];
+            int lum = ((c >> 16) & 0xFF) + ((c >> 8) & 0xFF) + (c & 0xFF);
+            g->SetColor(lum > 400 ? Color(0, 0, 0) : Color(255, 255, 255));
+            g->DrawString(aLabel, cx - tw / 2, baseline);
+        }
+
+        if (ShouldEmphasizeBanned())
+            DrawBannedCross(g);
+
+        g->SetColorizeImages(false);
+        g->SetDrawMode(Graphics::DRAWMODE_NORMAL);
+        return;
+    }
+
     if (mClearCount != 0)
     {
         DrawExplosion(g);
@@ -866,11 +937,19 @@ void Ball::DrawBallType(Graphics *g, int theType, int theAlpha)
         theAlpha = (theAlpha * invAlpha + 127) / 255;
 
     CircleShootApp *app = GetCircleShootApp();
-    if (app != NULL && app->IsColorBanned(theType))
+    if (app != NULL && app->IsColorBanned(theType) && !app->mBaseMinimumMode)
         theAlpha = (theAlpha * 191 + 127) / 255; // 0.75 opacity
 
     if (theAlpha <= 0)
         return;
+
+    if (app != NULL && app->mBaseMinimumMode)
+    {
+        uint c = Sexy::gBallColors[theType];
+        g->SetColor(Color((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF, theAlpha));
+        Sexy::FillCircle(g, (int)(mx + 0.5f), (int)(my + 0.5f), Sexy::GetDefaultBallRadius());
+        return;
+    }
 
     Image *image = Sexy::GetImageById((ResourceId)(theType + Sexy::IMAGE_BLUE_BALL_ID));
     if (image == NULL)

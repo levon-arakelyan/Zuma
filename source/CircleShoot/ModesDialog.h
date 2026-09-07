@@ -49,6 +49,7 @@ namespace Sexy
             Mode_Bankrupt,
             Mode_ColorShift,
             Mode_Invisible,
+            Mode_BaseMinimum,
             Mode_Count
         };
     }
@@ -124,6 +125,7 @@ namespace Sexy
         bool IsBankruptSelected() const;
         bool IsColorShiftSelected() const;
         bool IsInvisibleSelected() const;
+        bool IsBaseMinimumSelected() const;
 
         void GetBannedColors(bool outBanned[MAX_BALL_COLORS]) const;
         void SetBannedColors(const bool banned[MAX_BALL_COLORS]);
@@ -193,6 +195,7 @@ namespace Sexy
         Checkbox *mBankruptCheckbox;
         Checkbox *mColorShiftCheckbox;
         Checkbox *mInvisibleCheckbox;
+        Checkbox *mBaseMinimumCheckbox;
 
         ModeWidgetSlot mModeSlots[ModesCatalog::Mode_Count];
 

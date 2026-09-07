@@ -77,6 +77,8 @@ namespace ModesCatalog
         "All balls on the rolling chain periodically change color. Enable colors to shift, choose each destination, set the interval (1-10 sec), or use random remapping.";
     const char *const kInvisibleDescription =
         "Periodically hide a random percent of chain balls. Choose duration, wave interval, and how many balls go invisible.";
+    const char *const kBaseMinimumDescription =
+        "Strip the game to basics: no HUD or path art, pitch-black levels, colored circles instead of sprites, no particles or trail highlights, and levels start/advance immediately.";
 
     // --- Widget ids ---
     const int kGroupListId = 0;
@@ -114,6 +116,7 @@ namespace ModesCatalog
         {Mode_UglyChain, Group_Challenges, "Ugly chain", kUglyChainDescription, false},
         {Mode_ColorShift, Group_Challenges, "Color shift", kColorShiftDescription, true},
         {Mode_Invisible, Group_Challenges, "Invisible", kInvisibleDescription, true},
+        {Mode_BaseMinimum, Group_Challenges, "Base Minimum", kBaseMinimumDescription, false},
         {Mode_Unpowered, Group_GameMechanics, "Unpowered", kUnpoweredDescription, true},
         {Mode_NoSwap, Group_GameMechanics, "No swap", kNoSwapDescription, false},
         {Mode_Comboless, Group_GameMechanics, "Comboless", kCombolessDescription, false},
@@ -299,6 +302,7 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
     mBankruptCheckbox = mModeSlots[ModesCatalog::Mode_Bankrupt].mCheckbox;
     mColorShiftCheckbox = mModeSlots[ModesCatalog::Mode_ColorShift].mCheckbox;
     mInvisibleCheckbox = mModeSlots[ModesCatalog::Mode_Invisible].mCheckbox;
+    mBaseMinimumCheckbox = mModeSlots[ModesCatalog::Mode_BaseMinimum].mCheckbox;
 
     CircleShootApp *app = GetCircleShootApp();
     if (mColorsBanCheckbox != NULL)
@@ -331,6 +335,8 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
         mColorShiftCheckbox->mChecked = app->mColorShiftMode;
     if (mInvisibleCheckbox != NULL)
         mInvisibleCheckbox->mChecked = app->mInvisibleMode;
+    if (mBaseMinimumCheckbox != NULL)
+        mBaseMinimumCheckbox->mChecked = app->mBaseMinimumMode;
 
     for (int i = 0; i < MAX_BALL_COLORS; i++)
         mPendingBannedColors[i] = app->mBannedColors[i];
@@ -960,6 +966,11 @@ bool ModesDialog::IsColorShiftSelected() const
 bool ModesDialog::IsInvisibleSelected() const
 {
     return mInvisibleCheckbox != NULL && mInvisibleCheckbox->IsChecked();
+}
+
+bool ModesDialog::IsBaseMinimumSelected() const
+{
+    return mBaseMinimumCheckbox != NULL && mBaseMinimumCheckbox->IsChecked();
 }
 
 void ModesDialog::GetBannedColors(bool outBanned[MAX_BALL_COLORS]) const

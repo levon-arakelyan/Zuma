@@ -45,21 +45,29 @@ void BallDrawer::Reset()
 
 void BallDrawer::Draw(Graphics *g, SpriteMgr *theSpriteMgr, ParticleMgr *theParticleMgr)
 {
+    const bool minReq = GetCircleShootApp()->mBaseMinimumMode;
+
     for (int i = 0; i < 5; i++)
     {
-        theSpriteMgr->DrawSprites(g, i);
+        if (!minReq)
+            theSpriteMgr->DrawSprites(g, i);
 
         // Draw crawling holes in the same priority layer as balls on that path
         // segment, so tunnel/mask overlays still correctly cover lower layers.
+        // Base Minimum still draws holes (as gray circles).
         if (GetCircleShootApp()->mMovingHoleMode)
             theSpriteMgr->DrawHoles(g, i);
 
-        theParticleMgr->Draw(g, i);
+        if (!minReq)
+            theParticleMgr->Draw(g, i);
 
-        int aNumShadows = mNumShadows[i];
-        for (int j = 0; j < aNumShadows; j++)
+        if (!minReq)
         {
-            mShadows[i][j]->DrawShadow(g);
+            int aNumShadows = mNumShadows[i];
+            for (int j = 0; j < aNumShadows; j++)
+            {
+                mShadows[i][j]->DrawShadow(g);
+            }
         }
 
         int aNumBalls = mNumBalls[i];
@@ -126,17 +134,24 @@ void CurveMgr::SetupLevel(LevelDesc *theDesc, SpriteMgr *theSpriteMgr, int theCu
     int aHoleX = 0;
     int aHoleY = 0;
 
-    if (!mWayPointMgr->GetWayPointList().empty())
+    if (mWayPointMgr->GetWayPointList().empty())
     {
-        mWayPointMgr->CalcPerpendicularForPoint(mWayPointMgr->GetEndPoint());
-        WayPoint const &aPoint = mWayPointMgr->GetWayPointList().back();
-
-        aHoleX = aPoint.x;
-        aHoleY = aPoint.y;
-
-        if (aSkullRotation < 0.0f)
-            aSkullRotation = aPoint.mRotation;
+        // Unused curve slot (levels with < 3 paths). Do not place a hole at (0,0).
+        mEffectiveEndPoint = 0;
+        mEffectiveEndPointF = 0.0f;
+        mHoleRotationOffset = 0.0f;
+        RecalcDangerPoint();
+        return;
     }
+
+    mWayPointMgr->CalcPerpendicularForPoint(mWayPointMgr->GetEndPoint());
+    WayPoint const &aPoint = mWayPointMgr->GetWayPointList().back();
+
+    aHoleX = aPoint.x;
+    aHoleY = aPoint.y;
+
+    if (aSkullRotation < 0.0f)
+        aSkullRotation = aPoint.mRotation;
 
     mSpriteMgr->PlaceHole(mCurveNum, aHoleX, aHoleY, aSkullRotation,
                           mWayPointMgr->GetPriority(mWayPointMgr->GetEndPoint()));
@@ -658,6 +673,25 @@ void CurveMgr::DrawBalls(BallDrawer &theDrawer)
     }
 }
 
+void CurveMgr::DrawBallsInTunnel(Graphics *g, bool drawInTunnel)
+{
+    for (BallList::iterator aBallItr = mBallList.begin(); aBallItr != mBallList.end(); ++aBallItr)
+    {
+        Ball *aBall = *aBallItr;
+        bool inTunnel = mWayPointMgr->InTunnel((int)aBall->GetWayPoint());
+        if (inTunnel == drawInTunnel)
+            aBall->Draw(g);
+    }
+
+    for (BulletList::iterator aBulletItr = mBulletList.begin(); aBulletItr != mBulletList.end(); ++aBulletItr)
+    {
+        Bullet *aBullet = *aBulletItr;
+        bool inTunnel = mWayPointMgr->InTunnel(aBullet);
+        if (inTunnel == drawInTunnel)
+            aBullet->Draw(g);
+    }
+}
+
 bool CurveMgr::CheckCollision(Bullet *theBullet)
 {
     Bullet *aBullet = theBullet;
@@ -949,6 +983,67 @@ void CurveMgr::DrawTunnel(CurveDrawer &theDrawer)
     mWayPointMgr->DrawTunnel(theDrawer);
 }
 
+void CurveMgr::DrawBaseMinimumOverlays(Graphics *g)
+{
+    // Semi-transparent rectangles along tunnel / underpass segments where
+    // chains intersect or pass under scenery (mInTunnel waypoints).
+    if (mWayPointMgr == NULL || g == NULL)
+        return;
+
+    const WayPointList &pts = mWayPointMgr->GetWayPointList();
+    if (pts.empty())
+        return;
+
+    const int pad = Sexy::GetDefaultBallRadius();
+    g->SetColor(Color(180, 180, 180, 70));
+
+    int i = 0;
+    const int n = (int)pts.size();
+    while (i < n)
+    {
+        if (!pts[i].mInTunnel)
+        {
+            i++;
+            continue;
+        }
+
+        int start = i;
+        while (i < n && pts[i].mInTunnel)
+            i++;
+
+        // Chunk long snaking tunnels so overlays stay local to the path.
+        const int chunk = 40;
+        for (int c = start; c < i; c += chunk)
+        {
+            int cEnd = c + chunk;
+            if (cEnd > i)
+                cEnd = i;
+            float cMinX = pts[c].x, cMaxX = pts[c].x;
+            float cMinY = pts[c].y, cMaxY = pts[c].y;
+            for (int j = c; j < cEnd; j++)
+            {
+                if (pts[j].x < cMinX)
+                    cMinX = pts[j].x;
+                if (pts[j].x > cMaxX)
+                    cMaxX = pts[j].x;
+                if (pts[j].y < cMinY)
+                    cMinY = pts[j].y;
+                if (pts[j].y > cMaxY)
+                    cMaxY = pts[j].y;
+            }
+            int rx = (int)(cMinX - pad);
+            int ry = (int)(cMinY - pad);
+            int rw = (int)(cMaxX - cMinX) + pad * 2;
+            int rh = (int)(cMaxY - cMinY) + pad * 2;
+            if (rw < pad * 2)
+                rw = pad * 2;
+            if (rh < pad * 2)
+                rh = pad * 2;
+            g->FillRect(rx, ry, rw, rh);
+        }
+    }
+}
+
 void CurveMgr::DeleteBalls()
 {
     for (BulletList::iterator aBulletItr = mBulletList.begin(); aBulletItr != mBulletList.end(); aBulletItr++)
@@ -1063,6 +1158,9 @@ int CurveMgr::GetFarthestBallPercent()
 
 int CurveMgr::DrawPathSparkles(int theStartPoint, int theStagger, bool addSound)
 {
+    if (mApp->mBaseMinimumMode)
+        return theStagger;
+
     int aPathHiliteWP = theStartPoint;
     bool forwardPitch = ((mCurveNum ^ 1) & 1) != 0;
     int aPathHilitePitch = forwardPitch ? 0 : -20;

@@ -11,6 +11,7 @@
 #include "Bullet.h"
 #include "Gun.h"
 #include "CircleShootApp.h"
+#include "CircleCommon.h"
 #include "Res.h"
 #include "DataSync.h"
 
@@ -19,6 +20,8 @@
 using namespace Sexy;
 
 Sexy::MemoryImage *gShooterTop = 0;
+
+static void RotateXY(float &x, float &y, float cx, float cy, float rad);
 
 Gun::Gun()
 {
@@ -167,6 +170,35 @@ void Gun::SetAngle(float theAngle)
 
 void Gun::Draw(Graphics *g)
 {
+    CircleShootApp *app = GetCircleShootApp();
+    if (app != NULL && app->mBaseMinimumMode)
+    {
+        // Frog body: distinct green (not ball green 0x00FF00).
+        g->SetColor(Color(0x228B22));
+        Sexy::FillCircle(g, mCenterX, mCenterY, 28);
+
+        if (mBullet != NULL)
+            mBullet->Draw(g);
+
+        if (mShowNextBall && !app->mNoSwapMode && mNextBullet != NULL && mState != GunState_Reloading)
+        {
+            int aColorWidth = Sexy::IMAGE_NEXT_BALL->mWidth / 6;
+            int aColorHeight = Sexy::IMAGE_NEXT_BALL->mHeight;
+            int nextR = aColorWidth < aColorHeight ? aColorWidth / 2 : aColorHeight / 2;
+            if (nextR < 1)
+                nextR = 1;
+
+            float nx = (float)(mCenterX + 47 + aColorWidth / 2 - 54);
+            float ny = (float)(mCenterY + 22 + aColorHeight / 2 - 54);
+            RotateXY(nx, ny, (float)mCenterX, (float)mCenterY, mAngle);
+
+            uint c = Sexy::gBallColors[mNextBullet->GetType()];
+            g->SetColor(Color(c));
+            Sexy::FillCircle(g, (int)(nx + 0.5f), (int)(ny + 0.5f), nextR);
+        }
+        return;
+    }
+
     int aCornerX = mCenterX - 54;
     int aCornerY = mCenterY - 54;
 

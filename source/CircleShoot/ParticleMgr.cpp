@@ -5,6 +5,7 @@
 #include <SexyAppFramework/Image.h>
 
 #include "Board.h"
+#include "CircleShootApp.h"
 #include "DataSync.h"
 #include "ParticleMgr.h"
 #include "Res.h"
@@ -98,6 +99,9 @@ void ParticleMgr::Clear()
 
 void ParticleMgr::AddSparkle(float x, float y, float vx, float vy, int thePriority, int theDuration, int theStagger, uint theColor)
 {
+    if (GetCircleShootApp()->mBaseMinimumMode)
+        return;
+
     mSparkleList[thePriority].push_back(Sparkle());
     Sparkle &aSparkle = mSparkleList[thePriority].back();
 
@@ -117,6 +121,9 @@ void ParticleMgr::AddSparkle(float x, float y, float vx, float vy, int thePriori
 
 void ParticleMgr::AddExplosion(int x, int y, int theRadius, int theColor, int theStagger)
 {
+    if (GetCircleShootApp()->mBaseMinimumMode)
+        return;
+
     mExplosionList.push_back(Explosion());
     Explosion &anExplosion = mExplosionList.back();
 
@@ -129,6 +136,9 @@ void ParticleMgr::AddExplosion(int x, int y, int theRadius, int theColor, int th
 
 void ParticleMgr::AddFloatingText(int x, int y, int theColor, const std::string &theText, int theFontId, int theStagger, int theScoreInc, int theDuration, bool fade)
 {
+    if (GetCircleShootApp()->mBaseMinimumMode)
+        return;
+
     mFloatingTextList.push_back(FloatingText());
     FloatingText &aFloatingText = mFloatingTextList.back();
 

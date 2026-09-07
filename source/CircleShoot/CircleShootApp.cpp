@@ -123,6 +123,7 @@ CircleShootApp::CircleShootApp()
     mInvisibleDurationSec = 3.0f;
     mInvisibleIntervalSec = 5.0f;
     mInvisiblePercent = 50;
+    mBaseMinimumMode = false;
 }
 
 CircleShootApp::~CircleShootApp()
@@ -1280,6 +1281,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
     bool bankrupt = false;
     bool colorShift = false;
     bool invisible = false;
+    bool baseMinimum = false;
     bool bannedColors[MAX_BALL_COLORS];
     bool disabledPowerUps[PowerType_Max];
     float chainSpeed = 1.0f;
@@ -1324,6 +1326,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
         bankrupt = dialog->IsBankruptSelected();
         colorShift = dialog->IsColorShiftSelected();
         invisible = dialog->IsInvisibleSelected();
+        baseMinimum = dialog->IsBaseMinimumSelected();
         chainSpeed = dialog->GetChainSpeedMultiplier();
         movingHoleSpeed = dialog->GetMovingHoleSpeed();
         maxPowerPercent = dialog->GetMaxPowerPercent();
@@ -1379,6 +1382,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
         mBankruptMode = bankrupt;
         mColorShiftMode = colorShift;
         mInvisibleMode = invisible;
+        mBaseMinimumMode = baseMinimum;
         mChainSpeedMultiplier = chainSpeed;
         mMovingHoleSpeed = movingHoleSpeed;
         mMaxPowerPercent = maxPowerPercent;

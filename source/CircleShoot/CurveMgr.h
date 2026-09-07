@@ -136,6 +136,7 @@ namespace Sexy
 		void UpdateLosing();
 
 		void DrawBalls(BallDrawer &theDrawer);
+		void DrawBallsInTunnel(Graphics *g, bool drawInTunnel);
 		bool CheckCollision(Bullet *theBullet);
 		bool CheckGapShot(Bullet *theBullet);
 
@@ -154,6 +155,7 @@ namespace Sexy
 
 		void DrawCurve(CurveDrawer &theDrawer);
 		void DrawTunnel(CurveDrawer &theDrawer);
+		void DrawBaseMinimumOverlays(Graphics *g);
 		void DeleteBalls();
 		void GetPoint(int thePoint, int &x, int &y, int &pri);
 		int GetCurveLength();

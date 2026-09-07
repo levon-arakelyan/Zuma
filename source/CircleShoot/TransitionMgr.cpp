@@ -667,6 +667,12 @@ int TransitionMgr::AddTextBlurbWrap(const std::string &theBlurb, int theX, int t
 
 void TransitionMgr::DoLevelBegin(bool firstTime)
 {
+    if (GetCircleShootApp()->mBaseMinimumMode)
+    {
+        Clear();
+        mBoard->StartLevel();
+        return;
+    }
 
     int aStagger = !firstTime ? 20 : 150;
     if (mBoard->mSpriteMgr->GetInSpace())
@@ -980,6 +986,16 @@ void TransitionMgr::DoLevelUp()
         return;
     }
 
+    if (GetCircleShootApp()->mBaseMinimumMode)
+    {
+        mQuakeFrame = 2;
+        mState = TransitionState_Bonus;
+        mStateCount = 0;
+        mDoStageUp = mBoard->mNextLevelDesc->mStage != mBoard->mLevelDesc->mStage;
+        mDoTempleUp = false;
+        return;
+    }
+
     mQuakeFrame = 20;
     for (int i = 0; i < mBoard->mNumCurves; i++)
     {
@@ -1011,6 +1027,26 @@ void TransitionMgr::DoLevelUp()
 void TransitionMgr::DoLosing()
 {
     Clear();
+
+    if (GetCircleShootApp()->mBaseMinimumMode)
+    {
+        mBoard->mSoundMgr->StopLoop(LoopType_RollOut);
+        if (mBoard->mLives <= 0)
+        {
+            // Game over: skip "GAME OVER" stamp / roll-out, show results immediately.
+            mState = TransitionState_Losing;
+            mStateCount = 0;
+            mResetFrame = 1;
+            mBoard->mApp->DoStatsDialog(true, true);
+        }
+        else
+        {
+            // Still have lives: skip "N LIVES LEFT" and restart the level immediately.
+            mBoard->Reset(false, true);
+        }
+        return;
+    }
+
     mResetFrame = 0;
     mStateCount = 0;
     mState = TransitionState_Losing;
@@ -1114,6 +1150,21 @@ void TransitionMgr::UpdateLevelBegin()
 
 void TransitionMgr::UpdateBonus()
 {
+    if (GetCircleShootApp()->mBaseMinimumMode)
+    {
+        if (mStateCount == 1)
+        {
+            mBoard->mApp->PlaySample(Sexy::SOUND_LEVEL_UP);
+            mBoard->mScoreDisplay = mBoard->mScore;
+            mBoard->mApp->DoStatsDialog(true, true);
+        }
+        else if (mStateCount >= 2)
+        {
+            mBoard->Reset(false, false);
+        }
+        return;
+    }
+
     if (mStateCount >= mQuakeFrame)
     {
         if (mBoard->mNextLevelDesc->mStage != mBoard->mLevelDesc->mStage)
