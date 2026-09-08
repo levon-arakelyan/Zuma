@@ -667,7 +667,7 @@ int TransitionMgr::AddTextBlurbWrap(const std::string &theBlurb, int theX, int t
 
 void TransitionMgr::DoLevelBegin(bool firstTime)
 {
-    if (GetCircleShootApp()->mBaseMinimumMode)
+    if (GetCircleShootApp()->mAutoAdvanceMode)
     {
         Clear();
         mBoard->StartLevel();
@@ -986,7 +986,7 @@ void TransitionMgr::DoLevelUp()
         return;
     }
 
-    if (GetCircleShootApp()->mBaseMinimumMode)
+    if (GetCircleShootApp()->mAutoAdvanceMode)
     {
         mQuakeFrame = 2;
         mState = TransitionState_Bonus;
@@ -1028,7 +1028,7 @@ void TransitionMgr::DoLosing()
 {
     Clear();
 
-    if (GetCircleShootApp()->mBaseMinimumMode)
+    if (GetCircleShootApp()->mAutoAdvanceMode)
     {
         mBoard->mSoundMgr->StopLoop(LoopType_RollOut);
         if (mBoard->mLives <= 0)
@@ -1150,18 +1150,11 @@ void TransitionMgr::UpdateLevelBegin()
 
 void TransitionMgr::UpdateBonus()
 {
-    if (GetCircleShootApp()->mBaseMinimumMode)
+    if (GetCircleShootApp()->mAutoAdvanceMode)
     {
-        if (mStateCount == 1)
-        {
-            mBoard->mApp->PlaySample(Sexy::SOUND_LEVEL_UP);
-            mBoard->mScoreDisplay = mBoard->mScore;
-            mBoard->mApp->DoStatsDialog(true, true);
-        }
-        else if (mStateCount >= 2)
-        {
-            mBoard->Reset(false, false);
-        }
+        // Skip the per-level results modal; advance immediately.
+        mBoard->mScoreDisplay = mBoard->mScore;
+        mBoard->Reset(false, false);
         return;
     }
 

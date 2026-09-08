@@ -78,7 +78,9 @@ namespace ModesCatalog
     const char *const kInvisibleDescription =
         "Periodically hide a random percent of chain balls. Choose duration, wave interval, and how many balls go invisible.";
     const char *const kBaseMinimumDescription =
-        "Strip the game to basics: no HUD or path art, pitch-black levels, colored circles instead of sprites, no particles or trail highlights, and levels start/advance immediately.";
+        "Strip the game to minimum: no HUD or path art, pitch-black levels, colored circles instead of sprites, no particles or trail highlights.";
+    const char *const kAutoAdvanceDescription =
+        "Levels start and advance immediately with no path-cracking or stage transition animations. After a loss, the level restarts immediately (or shows results on game over).";
 
     // --- Widget ids ---
     const int kGroupListId = 0;
@@ -116,13 +118,14 @@ namespace ModesCatalog
         {Mode_UglyChain, Group_Challenges, "Ugly chain", kUglyChainDescription, false},
         {Mode_ColorShift, Group_Challenges, "Color shift", kColorShiftDescription, true},
         {Mode_Invisible, Group_Challenges, "Invisible", kInvisibleDescription, true},
-        {Mode_BaseMinimum, Group_Challenges, "Base Minimum", kBaseMinimumDescription, false},
         {Mode_Unpowered, Group_GameMechanics, "Unpowered", kUnpoweredDescription, true},
         {Mode_NoSwap, Group_GameMechanics, "No swap", kNoSwapDescription, false},
         {Mode_Comboless, Group_GameMechanics, "Comboless", kCombolessDescription, false},
         {Mode_GapFree, Group_GameMechanics, "Gap free", kGapFreeDescription, false},
         {Mode_ChainCount, Group_GameMechanics, "Chain count", kChainCountDescription, true},
         {Mode_Bankrupt, Group_GameMechanics, "Bankrupt", kBankruptDescription, false},
+        {Mode_BaseMinimum, Group_GameMechanics, "Base Minimum", kBaseMinimumDescription, false},
+        {Mode_AutoAdvance, Group_GameMechanics, "Auto-advance", kAutoAdvanceDescription, false},
         {Mode_MachineGun, Group_ForFun, "Machine gun", kMachineGunDescription, false},
         {Mode_Bomber, Group_ForFun, "Bomber", kBomberDescription, false},
         {Mode_MaxPower, Group_ForFun, "Max power", kMaxPowerDescription, true},
@@ -303,6 +306,7 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
     mColorShiftCheckbox = mModeSlots[ModesCatalog::Mode_ColorShift].mCheckbox;
     mInvisibleCheckbox = mModeSlots[ModesCatalog::Mode_Invisible].mCheckbox;
     mBaseMinimumCheckbox = mModeSlots[ModesCatalog::Mode_BaseMinimum].mCheckbox;
+    mAutoAdvanceCheckbox = mModeSlots[ModesCatalog::Mode_AutoAdvance].mCheckbox;
 
     CircleShootApp *app = GetCircleShootApp();
     if (mColorsBanCheckbox != NULL)
@@ -337,6 +341,8 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
         mInvisibleCheckbox->mChecked = app->mInvisibleMode;
     if (mBaseMinimumCheckbox != NULL)
         mBaseMinimumCheckbox->mChecked = app->mBaseMinimumMode;
+    if (mAutoAdvanceCheckbox != NULL)
+        mAutoAdvanceCheckbox->mChecked = app->mAutoAdvanceMode;
 
     for (int i = 0; i < MAX_BALL_COLORS; i++)
         mPendingBannedColors[i] = app->mBannedColors[i];
@@ -971,6 +977,11 @@ bool ModesDialog::IsInvisibleSelected() const
 bool ModesDialog::IsBaseMinimumSelected() const
 {
     return mBaseMinimumCheckbox != NULL && mBaseMinimumCheckbox->IsChecked();
+}
+
+bool ModesDialog::IsAutoAdvanceSelected() const
+{
+    return mAutoAdvanceCheckbox != NULL && mAutoAdvanceCheckbox->IsChecked();
 }
 
 void ModesDialog::GetBannedColors(bool outBanned[MAX_BALL_COLORS]) const

@@ -91,7 +91,8 @@ namespace Sexy
         bool mColorsBanRandom;       // pick random banned colors each round
         int mColorsBanRandomCount;   // 1-5 colors banned when random is on
         bool mActiveBannedColors[MAX_BALL_COLORS]; // effective bans for current round
-        bool mBaseMinimumMode;   // minimal geometric visuals + skip transitions
+        bool mBaseMinimumMode;   // minimal geometric visuals
+        bool mAutoAdvanceMode;   // skip level begin/end/lose transition delays
 
         bool IsColorBanned(int theColor) const;
         void RollRandomBannedColors(int theNumColors = -1);

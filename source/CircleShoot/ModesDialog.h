@@ -50,6 +50,7 @@ namespace Sexy
             Mode_ColorShift,
             Mode_Invisible,
             Mode_BaseMinimum,
+            Mode_AutoAdvance,
             Mode_Count
         };
     }
@@ -126,6 +127,7 @@ namespace Sexy
         bool IsColorShiftSelected() const;
         bool IsInvisibleSelected() const;
         bool IsBaseMinimumSelected() const;
+        bool IsAutoAdvanceSelected() const;
 
         void GetBannedColors(bool outBanned[MAX_BALL_COLORS]) const;
         void SetBannedColors(const bool banned[MAX_BALL_COLORS]);
@@ -196,6 +198,7 @@ namespace Sexy
         Checkbox *mColorShiftCheckbox;
         Checkbox *mInvisibleCheckbox;
         Checkbox *mBaseMinimumCheckbox;
+        Checkbox *mAutoAdvanceCheckbox;
 
         ModeWidgetSlot mModeSlots[ModesCatalog::Mode_Count];
 
