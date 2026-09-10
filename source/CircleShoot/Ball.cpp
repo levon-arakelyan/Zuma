@@ -124,6 +124,7 @@ Ball::Ball()
     mColorShiftFrame = 0;
     mInvisibleFrames = 0;
     mInvisibleFadeFrame = 0;
+    mRotateBombDraw = false;
     mBullet = NULL;
     mList = NULL;
     mCollidesWithNext = false;
@@ -697,7 +698,14 @@ void Ball::DrawBomb(Graphics *g)
     int width = mx - image->GetWidth() / 2;
     int height = my - image->GetHeight() / 2;
 
-    if (gSexyAppBase->Is3DAccelerated())
+    if (mRotateBombDraw)
+    {
+        if (gSexyAppBase->Is3DAccelerated())
+            g->DrawImageRotatedF(image, (float)width, (float)height, mRotation);
+        else
+            g->DrawImageRotated(image, width, height, mRotation);
+    }
+    else if (gSexyAppBase->Is3DAccelerated())
     {
         g->DrawImageF(image, width, height);
     }
@@ -730,7 +738,15 @@ void Ball::DrawBomb(Graphics *g)
     g->SetColorizeImages(true);
     g->SetColor(Color(alpha, alpha, alpha));
 
-    if (gSexyAppBase->Is3DAccelerated())
+    if (mRotateBombDraw)
+    {
+        Image *lightImage = Sexy::GetImageById((ResourceId)((int)Sexy::IMAGE_BLUE_LIGHT_ID + mType));
+        if (gSexyAppBase->Is3DAccelerated())
+            g->DrawImageRotatedF(lightImage, width + 7.0f, height + 9.0f, mRotation);
+        else
+            g->DrawImageRotated(lightImage, width + 7, height + 9, mRotation);
+    }
+    else if (gSexyAppBase->Is3DAccelerated())
     {
         Image *lightImage = Sexy::GetImageById((ResourceId)((int)Sexy::IMAGE_BLUE_LIGHT_ID + mType));
         g->DrawImageF(lightImage, width + 7.0f, height + 9.0f);

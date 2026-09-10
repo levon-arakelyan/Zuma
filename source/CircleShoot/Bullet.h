@@ -75,9 +75,16 @@ namespace Sexy
 		float GetVelX() { return mVelX; }
 		float GetVelY() { return mVelY; }
 
+		void SetKillerBall(bool killer) { mIsKillerBall = killer; }
+		bool IsKillerBall() const { return mIsKillerBall; }
+
 		virtual void Draw(Graphics *g);
 
 		void SyncState(DataSync &theSync);
+
+	protected:
+		// Append-only for MSVC incremental layout stability
+		bool mIsKillerBall;
 	};
 
 } // namespace Sexy

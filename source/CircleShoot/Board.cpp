@@ -177,6 +177,7 @@ Board::Board(CircleShootApp *theApp)
     mLevelDesc = new LevelDesc();
     mNextLevelDesc = new LevelDesc();
     mIsEndless = false;
+    mKillerBallCooldown = 0;
 }
 
 Board::~Board()
@@ -293,6 +294,23 @@ void Board::StartLevel()
     mGun->SetPos(mLevelDesc->mGunX, mLevelDesc->mGunY);
     mSoundMgr->PlayLoop(LoopType_RollIn);
     mLevelBeginning = true;
+
+    // First killer after one full interval from level start.
+    if (mApp->mKillerBallMode)
+    {
+        float intervalSec = mApp->mKillerBallIntervalSec;
+        if (intervalSec < 2.0f)
+            intervalSec = 2.0f;
+        if (intervalSec > 15.0f)
+            intervalSec = 15.0f;
+        mKillerBallCooldown = (int)(intervalSec * 100.0f + 0.5f);
+        if (mKillerBallCooldown < 1)
+            mKillerBallCooldown = 1;
+    }
+    else
+    {
+        mKillerBallCooldown = 0;
+    }
 }
 
 void Board::SetLosing()
@@ -449,7 +467,18 @@ void Board::CheckEndConditions()
     // does not crawl through balls while we wait. Lose still goes through IsLosing so
     // in-flight shots, clears, and chain-reaction sucks can still save the player.
 
-    if (!mBulletList.empty() || mGun->IsFiring())
+    // Player shots in flight can still save a lose or finish a clear; killer balls
+    // must not block level completion when the chains are already empty.
+    bool hasPlayerBullet = false;
+    for (BulletList::iterator anItr = mBulletList.begin(); anItr != mBulletList.end(); ++anItr)
+    {
+        if (!(*anItr)->IsKillerBall())
+        {
+            hasPlayerBullet = true;
+            break;
+        }
+    }
+    if (hasPlayerBullet || mGun->IsFiring())
         return;
 
     for (i = 0; i < mNumCurves; i++)
@@ -462,6 +491,22 @@ void Board::CheckEndConditions()
 
     if (i == mNumCurves)
     {
+        // Drop any leftover killers so they cannot hit the frog after the win.
+        for (BulletList::iterator anItr = mBulletList.begin(); anItr != mBulletList.end();)
+        {
+            if ((*anItr)->IsKillerBall())
+            {
+                int aType = (*anItr)->GetType();
+                delete *anItr;
+                anItr = mBulletList.erase(anItr);
+                ReleaseKillerBallColor(aType);
+            }
+            else
+            {
+                ++anItr;
+            }
+        }
+
         DoLevelUp(true, false);
         return;
     }
@@ -504,6 +549,43 @@ void Board::SyncPracticeMode()
 void Board::AdvanceFreeBullet(BulletList::iterator &theBulletItr)
 {
     Bullet *aBullet = *theBulletItr;
+
+    if (aBullet->IsKillerBall())
+    {
+        aBullet->Update();
+
+        float dx = aBullet->GetX() - (float)mGun->GetCenterX();
+        float dy = aBullet->GetY() - (float)mGun->GetCenterY();
+        float hitR = (float)(aBullet->GetRadius() + 36);
+        if (dx * dx + dy * dy <= hitR * hitR)
+        {
+            int aType = aBullet->GetType();
+            float aX = aBullet->GetX();
+            float aY = aBullet->GetY();
+            delete aBullet;
+            theBulletItr = mBulletList.erase(theBulletItr);
+            PlayKillerExplosion(aX, aY, aType);
+            ReleaseKillerBallColor(aType);
+            SetLosing();
+            return;
+        }
+
+        if (aBullet->GetX() >= 0.0f && aBullet->GetY() >= 0.0f &&
+            (aBullet->GetX() - aBullet->GetRadius()) < mWidth &&
+            (aBullet->GetY() - aBullet->GetRadius()) < mHeight)
+        {
+            ++theBulletItr;
+        }
+        else
+        {
+            int aType = aBullet->GetType();
+            delete aBullet;
+            theBulletItr = mBulletList.erase(theBulletItr);
+            ReleaseKillerBallColor(aType);
+        }
+        return;
+    }
+
     aBullet->Update();
 
     if (mCurTreasure != NULL)
@@ -594,6 +676,8 @@ void Board::AdvanceFreeBullet(BulletList::iterator &theBulletItr)
 
 void Board::UpdateBullets()
 {
+    ResolveKillerCollisions();
+
     for (BulletList::iterator aBulletItr = mBulletList.begin(); aBulletItr != mBulletList.end();)
     {
         AdvanceFreeBullet(aBulletItr);
@@ -613,6 +697,7 @@ void Board::UpdatePlaying()
     UpdateTreasure();
     UpdateColorShift();
     UpdateInvisible();
+    UpdateKillerBall();
 
     if (mLevelBeginning)
     {
@@ -1049,6 +1134,186 @@ void Board::UpdateInvisible()
 
     for (int i = 0; i < mNumCurves; i++)
         mCurveMgr[i]->ApplyInvisible(durationFrames, percent);
+}
+
+void Board::PlayKillerExplosion(float theX, float theY, int theType)
+{
+    if (theType < 0 || theType >= MAX_BALL_COLORS)
+        theType = 0;
+
+    int aColor = Sexy::gBallColors[theType];
+    int aX = (int)(theX + 0.5f);
+    int aY = (int)(theY + 0.5f);
+
+    mApp->PlaySample(Sexy::SOUND_EXPLODE);
+    mParticleMgr->AddExplosion(aX, aY, 0, aColor, 5);
+
+    int step = Sexy::IMAGE_EXPLOSION->mWidth / 3;
+    for (int i = step, stagger = 7; i < 100; i += step, stagger += 4)
+    {
+        float angle = 0.0f;
+        do
+        {
+            mParticleMgr->AddExplosion(
+                aX + (Sexy::AppRand() % 21 - 10) + (int)(sinf(angle) * i),
+                aY + (Sexy::AppRand() % 21 - 10) + (int)(cosf(angle) * i),
+                0,
+                aColor,
+                stagger);
+            angle += ((float)step / (float)i);
+        } while (angle < SEXY_PI * 2);
+    }
+
+    mParticleMgr->AddExplosion(aX, aY, 0, aColor, 0);
+}
+
+void Board::ReleaseKillerBallColor(int theType)
+{
+    ColorMap::iterator anItr = mBallColorMap.find(theType);
+    if (anItr == mBallColorMap.end())
+        return;
+
+    anItr->second--;
+    if (anItr->second <= 0)
+        mBallColorMap.erase(anItr);
+}
+
+void Board::EnsureGunHasColor(int theType)
+{
+    Bullet *cur = mGun->GetBullet();
+    Bullet *next = mGun->GetNextBullet();
+
+    if (cur != NULL && cur->GetType() == theType)
+        return;
+    if (next != NULL && next->GetType() == theType)
+        return;
+
+    // No-swap: put defense color in the mouth. Otherwise prefer the next slot.
+    if (GetCircleShootApp()->mNoSwapMode)
+    {
+        if (cur != NULL)
+            mGun->SetBulletType(theType);
+        else
+            mGun->Reload(theType, !GetCircleShootApp()->mMachineGunMode, Sexy::PowerType_Max);
+    }
+    else if (next != NULL)
+    {
+        mGun->SetNextBulletType(theType);
+    }
+    else if (cur != NULL)
+    {
+        mGun->SetBulletType(theType);
+    }
+    else
+    {
+        mGun->Reload(theType, !GetCircleShootApp()->mMachineGunMode, Sexy::PowerType_Max);
+    }
+}
+
+void Board::ResolveKillerCollisions()
+{
+    for (BulletList::iterator aShotItr = mBulletList.begin(); aShotItr != mBulletList.end();)
+    {
+        Bullet *aShot = *aShotItr;
+        if (aShot->IsKillerBall())
+        {
+            ++aShotItr;
+            continue;
+        }
+
+        bool destroyed = false;
+        for (BulletList::iterator aKillerItr = mBulletList.begin(); aKillerItr != mBulletList.end(); ++aKillerItr)
+        {
+            Bullet *aKiller = *aKillerItr;
+            if (!aKiller->IsKillerBall() || aKiller == aShot)
+                continue;
+
+            if (!aShot->CollidesWithPhysically(aKiller))
+                continue;
+
+            // Same color destroys the killer. Colors Ban must NOT end the game here.
+            if (aShot->GetType() == aKiller->GetType())
+            {
+                int aType = aKiller->GetType();
+                int aColor = Sexy::gBallColors[aType];
+                int aX = (int)(aKiller->GetX() + 0.5f);
+                int aY = (int)(aKiller->GetY() + 0.5f);
+
+                // Smaller hit burst — full explosion is only when a killer reaches the frog.
+                mApp->PlaySample(Sexy::SOUND_EXPLODE);
+                mParticleMgr->AddExplosion(aX, aY, 0, aColor, 5);
+                mParticleMgr->AddExplosion(aX, aY, 0, aColor, 0);
+
+                delete aKiller;
+                mBulletList.erase(aKillerItr);
+                delete aShot;
+                aShotItr = mBulletList.erase(aShotItr);
+                ReleaseKillerBallColor(aType);
+                destroyed = true;
+                break;
+            }
+        }
+
+        if (!destroyed)
+            ++aShotItr;
+    }
+}
+
+void Board::UpdateKillerBall()
+{
+    if (!mApp->mKillerBallMode || mGameState != GameState_Playing)
+        return;
+
+    if (mLevelBeginning || mPauseCount != 0)
+        return;
+
+    if (mKillerBallCooldown > 0)
+    {
+        --mKillerBallCooldown;
+        return;
+    }
+
+    float flightSec = mApp->mKillerBallFlightSec;
+    if (flightSec < 2.0f)
+        flightSec = 2.0f;
+    if (flightSec > 10.0f)
+        flightSec = 10.0f;
+
+    float frogX = (float)mGun->GetCenterX();
+    float frogY = (float)mGun->GetCenterY();
+
+    Bullet *killer = NULL;
+    if (mNumCurves > 0)
+    {
+        int start = (int)(Sexy::AppRand() % mNumCurves);
+        for (int n = 0; n < mNumCurves && killer == NULL; n++)
+        {
+            int i = (start + n) % mNumCurves;
+            killer = mCurveMgr[i]->LaunchKillerBall(flightSec, frogX, frogY);
+        }
+    }
+
+    float intervalSec = mApp->mKillerBallIntervalSec;
+    if (intervalSec < 2.0f)
+        intervalSec = 2.0f;
+    if (intervalSec > 15.0f)
+        intervalSec = 15.0f;
+
+    if (killer != NULL)
+    {
+        mBulletList.push_back(killer);
+        EnsureGunHasColor(killer->GetType());
+        mApp->PlaySample(Sexy::SOUND_BALLCLICK1);
+        mKillerBallCooldown = (int)(intervalSec * 100.0f + 0.5f);
+    }
+    else
+    {
+        // No eligible ball yet — retry shortly.
+        mKillerBallCooldown = 50;
+    }
+
+    if (mKillerBallCooldown < 1)
+        mKillerBallCooldown = 1;
 }
 
 void Board::UpdateMiscStuff()

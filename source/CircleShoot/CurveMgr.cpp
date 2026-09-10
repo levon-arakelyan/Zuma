@@ -2689,3 +2689,76 @@ void CurveMgr::ApplyInvisible(int theFrames, int thePercent)
         candidates[i]->SetInvisible(theFrames);
     }
 }
+
+Bullet *CurveMgr::LaunchKillerBall(float theFlightSec, float theFrogX, float theFrogY)
+{
+    Ball *candidates[512];
+    int count = 0;
+    for (BallList::iterator anItr = mBallList.begin(); anItr != mBallList.end(); ++anItr)
+    {
+        Ball *aBall = *anItr;
+        if (aBall == NULL || aBall->GetClearCount() != 0 || aBall->GetBullet() != NULL)
+            continue;
+        if (count < 512)
+            candidates[count++] = aBall;
+    }
+
+    if (count == 0)
+        return NULL;
+
+    Ball *src = candidates[Sexy::AppRand() % count];
+    float sx = src->GetX();
+    float sy = src->GetY();
+    int type = src->GetType();
+
+    Ball *aNextBall = src->GetNextBall();
+    Ball *aPrevBall = src->GetPrevBall();
+    bool wasFront = (!mBallList.empty() && src == mBallList.front());
+
+    // Same suck/combo setup as when a cleared ball finishes vanishing (UpdateSets).
+    if (!mApp->mCombolessMode &&
+        aNextBall != NULL && aNextBall->GetClearCount() == 0 && aPrevBall != NULL &&
+        aNextBall->GetType() == aPrevBall->GetType())
+    {
+        aNextBall->SetSuckCount(10);
+    }
+
+    if (aPrevBall != NULL)
+        aPrevBall->SetCollidesWithNext(false);
+
+    if (wasFront)
+    {
+        mAdvanceSpeed = 0.0f;
+        if (mStopTime < 40)
+            mStopTime = 40;
+    }
+
+    // Keep the killer's color in mBallColorMap while it flies so the frog can
+    // still reload that color and defend. Released when the killer is gone.
+    src->RemoveFromList();
+    delete src;
+
+    Bullet *killer = new Bullet();
+    killer->SetType(type);
+    killer->SetPos(sx, sy);
+    killer->SetKillerBall(true);
+    killer->SetPowerType(PowerType_Bomb, false);
+
+    float dx = theFrogX - sx;
+    float dy = theFrogY - sy;
+    float dist = (float)sqrt((double)(dx * dx + dy * dy));
+    if (dist < 1.0f)
+        dist = 1.0f;
+
+    float flightSec = theFlightSec;
+    if (flightSec < 0.5f)
+        flightSec = 0.5f;
+    float frames = flightSec * 100.0f;
+    if (frames < 1.0f)
+        frames = 1.0f;
+
+    float speed = dist / frames;
+    killer->SetVelocity((dx / dist) * speed, (dy / dist) * speed);
+
+    return killer;
+}

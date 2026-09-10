@@ -176,6 +176,7 @@ namespace Sexy
 		Gun *mGun;
 		int mLevel;
 		int mMaxStage;
+		int mKillerBallCooldown; // frames until next killer launch
 
 		static void StaticLoadProc(void *theData);
 		void LoadProc();
@@ -200,6 +201,11 @@ namespace Sexy
 		void UpdateTreasure();
 		void UpdateColorShift();
 		void UpdateInvisible();
+		void UpdateKillerBall();
+		void ResolveKillerCollisions();
+		void PlayKillerExplosion(float theX, float theY, int theType);
+		void ReleaseKillerBallColor(int theType);
+		void EnsureGunHasColor(int theType);
 		void UpdateMiscStuff();
 
 		void DrawTreasure(Graphics *g);

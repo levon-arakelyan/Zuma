@@ -171,6 +171,7 @@ namespace Sexy
 		void AddPowerUp(PowerType thePower);
 		void ApplyColorShift(const int theMap[MAX_BALL_COLORS]);
 		void ApplyInvisible(int theFrames, int thePercent);
+		Bullet *LaunchKillerBall(float theFlightSec, float theFrogX, float theFrogY);
 
 		void SyncState(DataSync &theSync);
 		void RestoreMovingHoleAfterLoad();

@@ -81,6 +81,8 @@ namespace ModesCatalog
         "Strip the game to minimum: no HUD or path art, pitch-black levels, colored circles instead of sprites, no particles or trail highlights.";
     const char *const kAutoAdvanceDescription =
         "Levels start and advance immediately with no path-cracking or stage transition animations. After a loss, the level restarts immediately (or shows results on game over).";
+    const char *const kKillerBallDescription =
+        "Periodically a chain ball becomes a killer and flies at the frog. Shoot it with the matching color to destroy it. Choose spawn interval and flight time.";
 
     // --- Widget ids ---
     const int kGroupListId = 0;
@@ -118,6 +120,7 @@ namespace ModesCatalog
         {Mode_UglyChain, Group_Challenges, "Ugly chain", kUglyChainDescription, false},
         {Mode_ColorShift, Group_Challenges, "Color shift", kColorShiftDescription, true},
         {Mode_Invisible, Group_Challenges, "Invisible", kInvisibleDescription, true},
+        {Mode_KillerBall, Group_Challenges, "Killer Ball", kKillerBallDescription, true},
         {Mode_Unpowered, Group_GameMechanics, "Unpowered", kUnpoweredDescription, true},
         {Mode_NoSwap, Group_GameMechanics, "No swap", kNoSwapDescription, false},
         {Mode_Comboless, Group_GameMechanics, "Comboless", kCombolessDescription, false},
@@ -307,6 +310,7 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
     mInvisibleCheckbox = mModeSlots[ModesCatalog::Mode_Invisible].mCheckbox;
     mBaseMinimumCheckbox = mModeSlots[ModesCatalog::Mode_BaseMinimum].mCheckbox;
     mAutoAdvanceCheckbox = mModeSlots[ModesCatalog::Mode_AutoAdvance].mCheckbox;
+    mKillerBallCheckbox = mModeSlots[ModesCatalog::Mode_KillerBall].mCheckbox;
 
     CircleShootApp *app = GetCircleShootApp();
     if (mColorsBanCheckbox != NULL)
@@ -343,6 +347,8 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
         mBaseMinimumCheckbox->mChecked = app->mBaseMinimumMode;
     if (mAutoAdvanceCheckbox != NULL)
         mAutoAdvanceCheckbox->mChecked = app->mAutoAdvanceMode;
+    if (mKillerBallCheckbox != NULL)
+        mKillerBallCheckbox->mChecked = app->mKillerBallMode;
 
     for (int i = 0; i < MAX_BALL_COLORS; i++)
         mPendingBannedColors[i] = app->mBannedColors[i];
@@ -381,6 +387,12 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
     mPendingInvisiblePercent = (mPendingInvisiblePercent / 2) * 2;
     if (mPendingInvisiblePercent < 4)
         mPendingInvisiblePercent = 4;
+    mPendingKillerBallIntervalSec = app->mKillerBallIntervalSec;
+    if (mPendingKillerBallIntervalSec < 2.0f || mPendingKillerBallIntervalSec > 15.0f)
+        mPendingKillerBallIntervalSec = 10.0f;
+    mPendingKillerBallFlightSec = app->mKillerBallFlightSec;
+    if (mPendingKillerBallFlightSec < 2.0f || mPendingKillerBallFlightSec > 10.0f)
+        mPendingKillerBallFlightSec = 10.0f;
 
     for (int i = 0; i < ModesCatalog::kGroupCount; i++)
         mGroupList->AddLine(ModesCatalog::kGroups[i].name, false);
@@ -415,6 +427,9 @@ ModesDialog::~ModesDialog()
     mBankruptCheckbox = NULL;
     mColorShiftCheckbox = NULL;
     mInvisibleCheckbox = NULL;
+    mBaseMinimumCheckbox = NULL;
+    mAutoAdvanceCheckbox = NULL;
+    mKillerBallCheckbox = NULL;
 
     delete mModesPane;
     mModesPane = NULL;
@@ -472,6 +487,9 @@ void ModesDialog::PrepareClose()
     mBankruptCheckbox = NULL;
     mColorShiftCheckbox = NULL;
     mInvisibleCheckbox = NULL;
+    mBaseMinimumCheckbox = NULL;
+    mAutoAdvanceCheckbox = NULL;
+    mKillerBallCheckbox = NULL;
 
     delete mModesPane;
     mModesPane = NULL;
@@ -791,6 +809,8 @@ void ModesDialog::OpenModePicker(ModesCatalog::ModeId theId)
         app->DoColorShiftDialog();
     else if (def->id == ModesCatalog::Mode_Invisible)
         app->DoInvisibleDialog();
+    else if (def->id == ModesCatalog::Mode_KillerBall)
+        app->DoKillerBallDialog();
 }
 
 void ModesDialog::ButtonMouseEnter(int theId)
@@ -982,6 +1002,11 @@ bool ModesDialog::IsBaseMinimumSelected() const
 bool ModesDialog::IsAutoAdvanceSelected() const
 {
     return mAutoAdvanceCheckbox != NULL && mAutoAdvanceCheckbox->IsChecked();
+}
+
+bool ModesDialog::IsKillerBallSelected() const
+{
+    return mKillerBallCheckbox != NULL && mKillerBallCheckbox->IsChecked();
 }
 
 void ModesDialog::GetBannedColors(bool outBanned[MAX_BALL_COLORS]) const
@@ -1252,6 +1277,41 @@ void ModesDialog::SetInvisibleSelected(bool selected)
 {
     if (mInvisibleCheckbox != NULL)
         mInvisibleCheckbox->SetChecked(selected, false);
+    MarkDirty();
+}
+
+float ModesDialog::GetKillerBallIntervalSec() const
+{
+    return mPendingKillerBallIntervalSec;
+}
+
+void ModesDialog::SetKillerBallIntervalSec(float sec)
+{
+    if (sec < 2.0f)
+        sec = 2.0f;
+    if (sec > 15.0f)
+        sec = 15.0f;
+    mPendingKillerBallIntervalSec = sec;
+}
+
+float ModesDialog::GetKillerBallFlightSec() const
+{
+    return mPendingKillerBallFlightSec;
+}
+
+void ModesDialog::SetKillerBallFlightSec(float sec)
+{
+    if (sec < 2.0f)
+        sec = 2.0f;
+    if (sec > 10.0f)
+        sec = 10.0f;
+    mPendingKillerBallFlightSec = sec;
+}
+
+void ModesDialog::SetKillerBallSelected(bool selected)
+{
+    if (mKillerBallCheckbox != NULL)
+        mKillerBallCheckbox->SetChecked(selected, false);
     MarkDirty();
 }
 

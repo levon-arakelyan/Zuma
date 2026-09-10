@@ -93,6 +93,9 @@ namespace Sexy
         bool mActiveBannedColors[MAX_BALL_COLORS]; // effective bans for current round
         bool mBaseMinimumMode;   // minimal geometric visuals
         bool mAutoAdvanceMode;   // skip level begin/end/lose transition delays
+        bool mKillerBallMode;
+        float mKillerBallIntervalSec; // seconds between killer launches
+        float mKillerBallFlightSec;   // seconds for killer to reach the frog
 
         bool IsColorBanned(int theColor) const;
         void RollRandomBannedColors(int theNumColors = -1);
@@ -151,6 +154,7 @@ namespace Sexy
         void DoColorShiftDialog();
         void DoColorShiftTargetDialog(int theSrcColor, int initialDest);
         void DoInvisibleDialog();
+        void DoKillerBallDialog();
         void DoModeHelpDialog(const std::string &theTitle, const std::string &theDescription);
         void DoConfirmContinueDialog(const std::string &theVerboseLevelString, const std::string &theDisplayName, int theScore);
         void DoGetReadyDialog();
@@ -180,6 +184,7 @@ namespace Sexy
         void FinishColorShiftDialog(bool apply);
         void FinishColorShiftTargetDialog(bool apply);
         void FinishInvisibleDialog(bool apply);
+        void FinishKillerBallDialog(bool apply);
         void FinishConfirmMainMenuDialog(bool mainMenu);
         void FinishStatsDialog(bool);
 

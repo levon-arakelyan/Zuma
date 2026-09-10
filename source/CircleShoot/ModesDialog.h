@@ -51,6 +51,7 @@ namespace Sexy
             Mode_Invisible,
             Mode_BaseMinimum,
             Mode_AutoAdvance,
+            Mode_KillerBall,
             Mode_Count
         };
     }
@@ -128,6 +129,7 @@ namespace Sexy
         bool IsInvisibleSelected() const;
         bool IsBaseMinimumSelected() const;
         bool IsAutoAdvanceSelected() const;
+        bool IsKillerBallSelected() const;
 
         void GetBannedColors(bool outBanned[MAX_BALL_COLORS]) const;
         void SetBannedColors(const bool banned[MAX_BALL_COLORS]);
@@ -179,6 +181,12 @@ namespace Sexy
         void SetInvisiblePercent(int percent);
         void SetInvisibleSelected(bool selected);
 
+        float GetKillerBallIntervalSec() const;
+        void SetKillerBallIntervalSec(float sec);
+        float GetKillerBallFlightSec() const;
+        void SetKillerBallFlightSec(float sec);
+        void SetKillerBallSelected(bool selected);
+
         void PrepareClose();
 
         // Named aliases kept for CircleShootApp / Finish* helpers
@@ -199,6 +207,7 @@ namespace Sexy
         Checkbox *mInvisibleCheckbox;
         Checkbox *mBaseMinimumCheckbox;
         Checkbox *mAutoAdvanceCheckbox;
+        Checkbox *mKillerBallCheckbox;
 
         ModeWidgetSlot mModeSlots[ModesCatalog::Mode_Count];
 
@@ -223,6 +232,8 @@ namespace Sexy
         float mPendingInvisibleDurationSec;
         float mPendingInvisibleIntervalSec;
         int mPendingInvisiblePercent;
+        float mPendingKillerBallIntervalSec;
+        float mPendingKillerBallFlightSec;
         bool mPendingColorsBanRandom;
         int mPendingColorsBanRandomCount;
         int mHoveredHitId;

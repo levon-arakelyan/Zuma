@@ -76,6 +76,7 @@ namespace Sexy
 		int mColorShiftFrame; // 0..COLOR_SHIFT_BLEND_FRAMES
 		int mInvisibleFrames; // hold frames after fully faded out
 		int mInvisibleFadeFrame; // 0 = visible .. INVISIBLE_BLEND_FRAMES = hidden
+		bool mRotateBombDraw; // killer-ball bomb fuse follows flight direction
 
 		void DrawBomb(Graphics *g);
 		void DrawStandardPower(Graphics *g, int theBallImageId, int theBlinkImageId, int thePowerType);

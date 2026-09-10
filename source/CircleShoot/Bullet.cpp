@@ -15,6 +15,7 @@ Bullet::Bullet()
     mHitBall = NULL;
     mHitPercent = 0.0f;
     mMergeSpeed = 0.05f;
+    mIsKillerBall = false;
 
     for (int i = 0; i < 3; i++)
     {
@@ -228,6 +229,7 @@ void Bullet::SyncState(DataSync &theSync)
     theSync.SyncFloat(mDestY);
     theSync.SyncFloat(mHitPercent);
     theSync.SyncFloat(mMergeSpeed);
+    theSync.SyncBool(mIsKillerBall);
 
     for (int i = 0; i < 3; i++)
     {
