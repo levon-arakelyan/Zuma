@@ -586,6 +586,39 @@ void Board::AdvanceFreeBullet(BulletList::iterator &theBulletItr)
         return;
     }
 
+    if (mApp->mLightSpeedMode)
+    {
+        float vx = aBullet->GetVelX();
+        float vy = aBullet->GetVelY();
+        float mag = (float)sqrt((double)(vx * vx + vy * vy));
+        if (mag < 0.001f)
+            mag = 1.0f;
+
+        // Small steps so we cannot skip over chain balls in one update.
+        const float kStep = 4.0f;
+        aBullet->SetVelocity((vx / mag) * kStep, (vy / mag) * kStep);
+
+        for (int i = 0; i < 500; i++)
+        {
+            if (AdvancePlayerBulletStep(theBulletItr))
+                return;
+        }
+
+        ResetInARowBonus();
+        delete *theBulletItr;
+        theBulletItr = mBulletList.erase(theBulletItr);
+        return;
+    }
+
+    if (AdvancePlayerBulletStep(theBulletItr))
+        return;
+
+    ++theBulletItr;
+}
+
+bool Board::AdvancePlayerBulletStep(BulletList::iterator &theBulletItr)
+{
+    Bullet *aBullet = *theBulletItr;
     aBullet->Update();
 
     if (mCurTreasure != NULL)
@@ -604,16 +637,12 @@ void Board::AdvanceFreeBullet(BulletList::iterator &theBulletItr)
             if (mIsEndless)
             {
                 if (bonus < 200)
-                {
                     bonus = 200;
-                }
             }
             else
             {
                 if (bonus < 500)
-                {
                     bonus = 500;
-                }
             }
 
             aFloat.AddText(StrFormat("BONUS +%d", bonus), Sexy::FONT_FLOAT_ID, 0xFFFF00);
@@ -628,18 +657,19 @@ void Board::AdvanceFreeBullet(BulletList::iterator &theBulletItr)
 
             for (int i = 0; i < 10; i++)
             {
-                float vx = cosf(i * 360 / 10 * SEXY_PI / 180.0f);
-                float vy = sinf(i * 360 / 10 * SEXY_PI / 180.0f);
+                float sparkVx = cosf(i * 360 / 10 * SEXY_PI / 180.0f);
+                float sparkVy = sinf(i * 360 / 10 * SEXY_PI / 180.0f);
                 uint color = gBrightBallColors[Sexy::Rand() % 6];
 
-                mParticleMgr->AddSparkle(mCurTreasure->x + vx * 16.0f, mCurTreasure->y + vx * 16.0f, 2 * vx, 2 * vy, 5, 0, Sexy::Rand() % 5, color);
+                mParticleMgr->AddSparkle(mCurTreasure->x + sparkVx * 16.0f, mCurTreasure->y + sparkVx * 16.0f,
+                                         2 * sparkVx, 2 * sparkVy, 5, 0, Sexy::Rand() % 5, color);
             }
 
             mCurTreasure = NULL;
 
             delete aBullet;
             theBulletItr = mBulletList.erase(theBulletItr);
-            return;
+            return true;
         }
     }
 
@@ -650,7 +680,7 @@ void Board::AdvanceFreeBullet(BulletList::iterator &theBulletItr)
             if (mCurveMgr[i]->CheckCollision(aBullet))
             {
                 theBulletItr = mBulletList.erase(theBulletItr);
-                return;
+                return true;
             }
         }
     }
@@ -664,14 +694,13 @@ void Board::AdvanceFreeBullet(BulletList::iterator &theBulletItr)
         (aBullet->GetX() - aBullet->GetRadius()) < mWidth &&
         (aBullet->GetY() - aBullet->GetRadius()) < mHeight)
     {
-        ++theBulletItr;
+        return false;
     }
-    else
-    {
-        ResetInARowBonus();
-        delete aBullet;
-        theBulletItr = mBulletList.erase(theBulletItr);
-    }
+
+    ResetInARowBonus();
+    delete aBullet;
+    theBulletItr = mBulletList.erase(theBulletItr);
+    return true;
 }
 
 void Board::UpdateBullets()
@@ -2130,36 +2159,26 @@ void Board::ButtonDepress(int theId)
 
 void Board::ActivatePower(Ball *theBall)
 {
-    // Optional Max power setting: skip loud power SFX and use regular destroy sounds.
-    bool playPowerSound = !(GetCircleShootApp()->mMaxPowerMode &&
-                            GetCircleShootApp()->mMaxPowerQuietSounds);
-
     switch (theBall->GetPowerTypeWussy())
     {
     case PowerType_Bomb:
     {
-        if (playPowerSound)
+        int aTicks = Sexy::BoardGetTickCount();
+        if (aTicks - mLastExplosionTick > 250)
         {
-            int aTicks = Sexy::BoardGetTickCount();
-            if (aTicks - mLastExplosionTick > 250)
-            {
-                mLastExplosionTick = aTicks;
-                mApp->PlaySample(Sexy::SOUND_EXPLODE);
-            }
+            mLastExplosionTick = aTicks;
+            mApp->PlaySample(Sexy::SOUND_EXPLODE);
         }
         break;
     }
     case PowerType_MoveBackwards:
-        if (playPowerSound)
-            mApp->PlaySample(Sexy::SOUND_BACKWARDS_BALL);
+        mApp->PlaySample(Sexy::SOUND_BACKWARDS_BALL);
         break;
     case PowerType_SlowDown:
-        if (playPowerSound)
-            mApp->PlaySample(Sexy::SOUND_SLOWDOWN_BALL);
+        mApp->PlaySample(Sexy::SOUND_SLOWDOWN_BALL);
         break;
     case PowerType_Accuracy:
-        if (playPowerSound)
-            mApp->PlaySample(Sexy::SOUND_ACCURACY_BALL);
+        mApp->PlaySample(Sexy::SOUND_ACCURACY_BALL);
         mAccuracyCount = 2000;
         DoAccuracy(true);
         break;

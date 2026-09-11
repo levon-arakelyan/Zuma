@@ -13,7 +13,7 @@ namespace Sexy
 
     ///////////////////////////////////////////////////////////////////////////////
     // Chain count picker: hits needed before chain bonus (1-20), optional disable.
-    // Same lifetime pattern as MaxPowerDialog.
+    // Same lifetime pattern as other mode picker dialogs (MovingHole style).
     ///////////////////////////////////////////////////////////////////////////////
     class ChainCountDialog : public CircleDialog, SliderListener
     {

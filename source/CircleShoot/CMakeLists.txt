@@ -28,7 +28,6 @@ add_executable(Zuma WIN32
     UnpoweredDialog.cpp
     SonicDialog.cpp
     MovingHoleDialog.cpp
-    MaxPowerDialog.cpp
     ChainCountDialog.cpp
     ColorShiftDialog.cpp
     ColorShiftTargetDialog.cpp

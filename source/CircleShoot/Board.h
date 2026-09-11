@@ -190,6 +190,8 @@ namespace Sexy
 		void SyncPracticeMode();
 
 		void AdvanceFreeBullet(BulletList::iterator &theBulletItr);
+		// Returns true if the bullet left mBulletList (iterator already advanced).
+		bool AdvancePlayerBulletStep(BulletList::iterator &theBulletItr);
 		void UpdateBullets();
 		void UpdatePlaying();
 		void UpdateLosing();

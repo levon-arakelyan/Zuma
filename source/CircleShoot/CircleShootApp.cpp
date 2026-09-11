@@ -24,7 +24,6 @@
 #include "UnpoweredDialog.h"
 #include "SonicDialog.h"
 #include "MovingHoleDialog.h"
-#include "MaxPowerDialog.h"
 #include "ChainCountDialog.h"
 #include "ColorShiftDialog.h"
 #include "ColorShiftTargetDialog.h"
@@ -98,14 +97,10 @@ CircleShootApp::CircleShootApp()
     mNoSwapMode = false;
     mSonicMode = false;
     mMachineGunMode = false;
-    mBomberMode = false;
     mUglyChainMode = false;
     mMovingHoleMode = false;
     mChainSpeedMultiplier = 1.0f;
     mMovingHoleSpeed = 20; // ~old 0.5s crawl rate; 100 = Ultra fast (~0.1s)
-    mMaxPowerMode = false;
-    mMaxPowerPercent = 100;
-    mMaxPowerQuietSounds = true;
     mCombolessMode = false;
     mGapFreeMode = false;
     mChainCountMode = false;
@@ -129,6 +124,7 @@ CircleShootApp::CircleShootApp()
     mKillerBallMode = false;
     mKillerBallIntervalSec = 10.0f;
     mKillerBallFlightSec = 10.0f;
+    mLightSpeedMode = false;
 }
 
 CircleShootApp::~CircleShootApp()
@@ -1062,20 +1058,6 @@ void CircleShootApp::DoMovingHoleDialog()
     AddDialog(DialogType_MovingHole, dialog);
 }
 
-void CircleShootApp::DoMaxPowerDialog()
-{
-    if (GetDialog(DialogType_MaxPower) != NULL)
-        return;
-
-    ModesDialog *modes = (ModesDialog *)GetDialog(DialogType_Modes);
-    int initialPercent = (modes != NULL) ? modes->GetMaxPowerPercent() : mMaxPowerPercent;
-    bool quietSounds = (modes != NULL) ? modes->GetMaxPowerQuietSounds() : mMaxPowerQuietSounds;
-
-    Dialog *dialog = new MaxPowerDialog(initialPercent, quietSounds);
-    SetupDialog(dialog, 420);
-    AddDialog(DialogType_MaxPower, dialog);
-}
-
 void CircleShootApp::DoChainCountDialog()
 {
     if (GetDialog(DialogType_ChainCount) != NULL)
@@ -1290,10 +1272,9 @@ void CircleShootApp::FinishModesDialog(bool apply)
     bool noSwap = false;
     bool sonic = false;
     bool machineGun = false;
-    bool bomber = false;
+    bool lightSpeed = false;
     bool uglyChain = false;
     bool movingHole = false;
-    bool maxPower = false;
     bool comboless = false;
     bool gapFree = false;
     bool chainCount = false;
@@ -1307,8 +1288,6 @@ void CircleShootApp::FinishModesDialog(bool apply)
     bool disabledPowerUps[PowerType_Max];
     float chainSpeed = 1.0f;
     int movingHoleSpeed = 20;
-    int maxPowerPercent = 100;
-    bool maxPowerQuietSounds = true;
     int chainBonusThreshold = 5;
     bool chainBonusDisabled = false;
     float colorShiftHz = 3.0f;
@@ -1339,10 +1318,9 @@ void CircleShootApp::FinishModesDialog(bool apply)
         noSwap = dialog->IsNoSwapSelected();
         sonic = dialog->IsSonicSelected();
         machineGun = dialog->IsMachineGunSelected();
-        bomber = dialog->IsBomberSelected();
+        lightSpeed = dialog->IsLightSpeedSelected();
         uglyChain = dialog->IsUglyChainSelected();
         movingHole = dialog->IsMovingHoleSelected();
-        maxPower = dialog->IsMaxPowerSelected();
         comboless = dialog->IsCombolessSelected();
         gapFree = dialog->IsGapFreeSelected();
         chainCount = dialog->IsChainCountSelected();
@@ -1354,8 +1332,6 @@ void CircleShootApp::FinishModesDialog(bool apply)
         killerBall = dialog->IsKillerBallSelected();
         chainSpeed = dialog->GetChainSpeedMultiplier();
         movingHoleSpeed = dialog->GetMovingHoleSpeed();
-        maxPowerPercent = dialog->GetMaxPowerPercent();
-        maxPowerQuietSounds = dialog->GetMaxPowerQuietSounds();
         chainBonusThreshold = dialog->GetChainBonusThreshold();
         chainBonusDisabled = dialog->GetChainBonusDisabled();
         colorShiftHz = dialog->GetColorShiftHz();
@@ -1375,7 +1351,6 @@ void CircleShootApp::FinishModesDialog(bool apply)
     KillDialog(DialogType_Unpowered);
     KillDialog(DialogType_Sonic);
     KillDialog(DialogType_MovingHole);
-    KillDialog(DialogType_MaxPower);
     KillDialog(DialogType_ChainCount);
     KillDialog(DialogType_ColorShiftTarget);
     KillDialog(DialogType_ColorShift);
@@ -1400,10 +1375,9 @@ void CircleShootApp::FinishModesDialog(bool apply)
         mNoSwapMode = noSwap;
         mSonicMode = sonic;
         mMachineGunMode = machineGun;
-        mBomberMode = bomber;
+        mLightSpeedMode = lightSpeed;
         mUglyChainMode = uglyChain;
         mMovingHoleMode = movingHole;
-        mMaxPowerMode = maxPower;
         mCombolessMode = comboless;
         mGapFreeMode = gapFree;
         mChainCountMode = chainCount;
@@ -1414,8 +1388,6 @@ void CircleShootApp::FinishModesDialog(bool apply)
         mAutoAdvanceMode = autoAdvance;
         mChainSpeedMultiplier = chainSpeed;
         mMovingHoleSpeed = movingHoleSpeed;
-        mMaxPowerPercent = maxPowerPercent;
-        mMaxPowerQuietSounds = maxPowerQuietSounds;
         mChainBonusThreshold = chainBonusThreshold;
         mChainBonusDisabled = chainBonusDisabled;
         mColorShiftHz = colorShiftHz;
@@ -1516,26 +1488,6 @@ void CircleShootApp::FinishMovingHoleDialog(bool apply)
     }
 
     KillDialog(DialogType_MovingHole);
-}
-
-void CircleShootApp::FinishMaxPowerDialog(bool apply)
-{
-    MaxPowerDialog *powerDialog = (MaxPowerDialog *)GetDialog(DialogType_MaxPower);
-    ModesDialog *modesDialog = (ModesDialog *)GetDialog(DialogType_Modes);
-    if (powerDialog == NULL)
-        return;
-
-    if (apply)
-    {
-        if (modesDialog != NULL)
-        {
-            modesDialog->SetMaxPowerPercent(powerDialog->GetPercent());
-            modesDialog->SetMaxPowerQuietSounds(powerDialog->GetQuietSounds());
-            modesDialog->SetMaxPowerSelected(true);
-        }
-    }
-
-    KillDialog(DialogType_MaxPower);
 }
 
 void CircleShootApp::FinishChainCountDialog(bool apply)
@@ -1794,9 +1746,6 @@ bool CircleShootApp::CheckYesNoButton(int theButton)
         case 2028:
             FinishMovingHoleDialog(true);
             return true;
-        case 2029:
-            FinishMaxPowerDialog(true);
-            return true;
         case 2030:
             FinishChainCountDialog(true);
             return true;
@@ -1873,9 +1822,6 @@ bool CircleShootApp::CheckYesNoButton(int theButton)
             return true;
         case 3028:
             FinishMovingHoleDialog(false);
-            return true;
-        case 3029:
-            FinishMaxPowerDialog(false);
             return true;
         case 3030:
             FinishChainCountDialog(false);

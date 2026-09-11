@@ -1549,8 +1549,7 @@ bool CurveMgr::CheckSet(Ball *theBall)
     mBoard->mNeedComboCount.clear();
 
     // Normally power clears skip the destroy SFX (power SFX play instead).
-    // With Max power quiet-sounds, keep a single regular destroy sound instead.
-    if (!mHadPowerUp || (mApp->mMaxPowerMode && mApp->mMaxPowerQuietSounds))
+    if (!mHadPowerUp)
     {
         int *destroySound = &Sexy::SOUND_BALLDESTROYED1;
 
@@ -1847,23 +1846,6 @@ void CurveMgr::AddBall()
     aBall->SetSuckCount(0);
     aBall->SetGapBonus(0, 0);
     aBall->SetComboCount(0, 0);
-
-    if (mApp->mMaxPowerMode && mApp->mMaxPowerPercent > 0)
-    {
-        if ((Sexy::AppRand() % 100) < mApp->mMaxPowerPercent)
-        {
-            int available[PowerType_Max];
-            int count = 0;
-            for (int i = 0; i < (int)PowerType_Max; i++)
-            {
-                if (!mApp->IsPowerUpDisabled(i))
-                    available[count++] = i;
-            }
-
-            if (count > 0)
-                aBall->SetPowerType((PowerType)available[Sexy::AppRand() % count], false);
-        }
-    }
 
     mPendingBalls.pop_front();
 }
@@ -2239,10 +2221,6 @@ void CurveMgr::UpdatePowerUps()
     if (mBallList.empty())
         return;
 
-    // Max power already stamps every spawned ball; skip random mid-chain rolls.
-    if (mApp->mMaxPowerMode)
-        return;
-
     for (int i = 0; i < (int)PowerType_Max; i++)
     {
         if (mApp->IsPowerUpDisabled(i))
@@ -2385,29 +2363,10 @@ void CurveMgr::AdvanceMergingBullet(BulletList::iterator &theBulletItr)
 
         mBoard->mNumClearsInARow++;
 
-        Ball *aRowNextEnd = NULL;
-        Ball *aRowPrevEnd = NULL;
-        int aRowCount = GetNumInARow(aNewBall, aNewBall->GetType(), &aRowNextEnd, &aRowPrevEnd);
-
         bool didClear = CheckSet(aNewBall);
         bool matchOfThreeOrMore = didClear;
 
-        if (mApp->mBomberMode && aRowCount > 2)
-        {
-            int aTicks = Sexy::BoardGetTickCount();
-            if (aTicks - mBoard->mLastExplosionTick > 250)
-            {
-                mBoard->mLastExplosionTick = aTicks;
-                mApp->PlaySample(Sexy::SOUND_EXPLODE);
-            }
-
-            for (int i = 0; i < mBoard->mNumCurves; i++)
-                mBoard->mCurveMgr[i]->ActivateBomb(aNewBall);
-
-            didClear = true;
-        }
-
-        // Colors ban only applies to normal 3+ matches, not bomber-only 3-ball blasts.
+        // Colors ban only applies to normal 3+ matches.
         if (matchOfThreeOrMore && mApp->IsColorBanned(aNewBall->GetType()))
         {
             mBoard->SetLosing();

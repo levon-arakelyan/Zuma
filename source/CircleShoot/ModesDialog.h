@@ -27,7 +27,7 @@ namespace Sexy
         enum GroupId
         {
             Group_GameMechanics = 0,
-            Group_ForFun,
+            Group_Overpowered,
             Group_Challenges,
             Group_Count
         };
@@ -39,10 +39,9 @@ namespace Sexy
             Mode_NoSwap,
             Mode_Sonic,
             Mode_MachineGun,
-            Mode_Bomber,
+            Mode_LightSpeed,
             Mode_UglyChain,
             Mode_MovingHole,
-            Mode_MaxPower,
             Mode_Comboless,
             Mode_GapFree,
             Mode_ChainCount,
@@ -117,10 +116,9 @@ namespace Sexy
         bool IsNoSwapSelected() const;
         bool IsSonicSelected() const;
         bool IsMachineGunSelected() const;
-        bool IsBomberSelected() const;
+        bool IsLightSpeedSelected() const;
         bool IsUglyChainSelected() const;
         bool IsMovingHoleSelected() const;
-        bool IsMaxPowerSelected() const;
         bool IsCombolessSelected() const;
         bool IsGapFreeSelected() const;
         bool IsChainCountSelected() const;
@@ -150,12 +148,6 @@ namespace Sexy
         int GetMovingHoleSpeed() const;
         void SetMovingHoleSpeed(int speed);
         void SetMovingHoleSelected(bool selected);
-
-        int GetMaxPowerPercent() const;
-        void SetMaxPowerPercent(int percent);
-        bool GetMaxPowerQuietSounds() const;
-        void SetMaxPowerQuietSounds(bool quiet);
-        void SetMaxPowerSelected(bool selected);
 
         int GetChainBonusThreshold() const;
         void SetChainBonusThreshold(int threshold);
@@ -195,10 +187,9 @@ namespace Sexy
         Checkbox *mNoSwapCheckbox;
         Checkbox *mSonicCheckbox;
         Checkbox *mMachineGunCheckbox;
-        Checkbox *mBomberCheckbox;
+        Checkbox *mLightSpeedCheckbox;
         Checkbox *mUglyChainCheckbox;
         Checkbox *mMovingHoleCheckbox;
-        Checkbox *mMaxPowerCheckbox;
         Checkbox *mCombolessCheckbox;
         Checkbox *mGapFreeCheckbox;
         Checkbox *mChainCountCheckbox;
@@ -221,8 +212,6 @@ namespace Sexy
         bool mPendingDisabledPowerUps[PowerType_Max];
         float mPendingChainSpeedMultiplier;
         int mPendingMovingHoleSpeed;
-        int mPendingMaxPowerPercent;
-        bool mPendingMaxPowerQuietSounds;
         int mPendingChainBonusThreshold;
         bool mPendingChainBonusDisabled;
         float mPendingColorShiftHz;

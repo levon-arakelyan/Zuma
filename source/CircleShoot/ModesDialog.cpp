@@ -57,14 +57,12 @@ namespace ModesCatalog
         "Increase the ball chain speed. When enabled, choose a multiplier from 1x to 10x (in 0.5 steps).";
     const char *const kMachineGunDescription =
         "No fire-rate limit. Every left click throws a ball immediately, even while the frog is still animating.";
-    const char *const kBomberDescription =
-        "Hitting a chain of 2 or more balls of the matching color triggers a bomb explosion at the impact.";
+    const char *const kLightSpeedDescription =
+        "Frog shots reach their destination instantly — no travel time or flight animation.";
     const char *const kUglyChainDescription =
         "The rolling chain never places the same color next to itself. Every neighbor pair is a different color.";
     const char *const kMovingHoleDescription =
         "The end hole crawls backward along the path at a speed you choose, so the chain has less and less distance before it falls in.";
-    const char *const kMaxPowerDescription =
-        "Choose what percent of balls on the chain spawn as power-ups. Optionally replace loud power-up sounds with regular destroy sounds.";
     const char *const kCombolessDescription =
         "Combos are disabled. Matching groups no longer suck together across gaps, and clears do not chain-react into further clears.";
     const char *const kGapFreeDescription =
@@ -98,7 +96,7 @@ namespace ModesCatalog
 
     static const GroupDef kGroups[] = {
         {Group_GameMechanics, "Game Mechanics"},
-        {Group_ForFun, "For Fun"},
+        {Group_Overpowered, "Overpowered"},
         {Group_Challenges, "Challenges"},
     };
     static const int kGroupCount = sizeof(kGroups) / sizeof(kGroups[0]);
@@ -129,9 +127,8 @@ namespace ModesCatalog
         {Mode_Bankrupt, Group_GameMechanics, "Bankrupt", kBankruptDescription, false},
         {Mode_BaseMinimum, Group_GameMechanics, "Base Minimum", kBaseMinimumDescription, false},
         {Mode_AutoAdvance, Group_GameMechanics, "Auto-advance", kAutoAdvanceDescription, false},
-        {Mode_MachineGun, Group_ForFun, "Machine gun", kMachineGunDescription, false},
-        {Mode_Bomber, Group_ForFun, "Bomber", kBomberDescription, false},
-        {Mode_MaxPower, Group_ForFun, "Max power", kMaxPowerDescription, true},
+        {Mode_MachineGun, Group_Overpowered, "Machine gun", kMachineGunDescription, false},
+        {Mode_LightSpeed, Group_Overpowered, "Light Speed", kLightSpeedDescription, false},
     };
     static const int kModeCount = sizeof(kModes) / sizeof(kModes[0]);
 
@@ -298,10 +295,9 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
     mNoSwapCheckbox = mModeSlots[ModesCatalog::Mode_NoSwap].mCheckbox;
     mSonicCheckbox = mModeSlots[ModesCatalog::Mode_Sonic].mCheckbox;
     mMachineGunCheckbox = mModeSlots[ModesCatalog::Mode_MachineGun].mCheckbox;
-    mBomberCheckbox = mModeSlots[ModesCatalog::Mode_Bomber].mCheckbox;
+    mLightSpeedCheckbox = mModeSlots[ModesCatalog::Mode_LightSpeed].mCheckbox;
     mUglyChainCheckbox = mModeSlots[ModesCatalog::Mode_UglyChain].mCheckbox;
     mMovingHoleCheckbox = mModeSlots[ModesCatalog::Mode_MovingHole].mCheckbox;
-    mMaxPowerCheckbox = mModeSlots[ModesCatalog::Mode_MaxPower].mCheckbox;
     mCombolessCheckbox = mModeSlots[ModesCatalog::Mode_Comboless].mCheckbox;
     mGapFreeCheckbox = mModeSlots[ModesCatalog::Mode_GapFree].mCheckbox;
     mChainCountCheckbox = mModeSlots[ModesCatalog::Mode_ChainCount].mCheckbox;
@@ -323,14 +319,12 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
         mSonicCheckbox->mChecked = app->mSonicMode;
     if (mMachineGunCheckbox != NULL)
         mMachineGunCheckbox->mChecked = app->mMachineGunMode;
-    if (mBomberCheckbox != NULL)
-        mBomberCheckbox->mChecked = app->mBomberMode;
+    if (mLightSpeedCheckbox != NULL)
+        mLightSpeedCheckbox->mChecked = app->mLightSpeedMode;
     if (mUglyChainCheckbox != NULL)
         mUglyChainCheckbox->mChecked = app->mUglyChainMode;
     if (mMovingHoleCheckbox != NULL)
         mMovingHoleCheckbox->mChecked = app->mMovingHoleMode;
-    if (mMaxPowerCheckbox != NULL)
-        mMaxPowerCheckbox->mChecked = app->mMaxPowerMode;
     if (mCombolessCheckbox != NULL)
         mCombolessCheckbox->mChecked = app->mCombolessMode;
     if (mGapFreeCheckbox != NULL)
@@ -360,8 +354,6 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
         mPendingDisabledPowerUps[i] = app->mDisabledPowerUps[i];
     mPendingChainSpeedMultiplier = app->mChainSpeedMultiplier;
     mPendingMovingHoleSpeed = app->mMovingHoleSpeed;
-    mPendingMaxPowerPercent = app->mMaxPowerPercent;
-    mPendingMaxPowerQuietSounds = app->mMaxPowerQuietSounds;
     mPendingChainBonusThreshold = app->mChainBonusThreshold;
     if (mPendingChainBonusThreshold < 1 || mPendingChainBonusThreshold > 20)
         mPendingChainBonusThreshold = 5;
@@ -417,10 +409,9 @@ ModesDialog::~ModesDialog()
     mNoSwapCheckbox = NULL;
     mSonicCheckbox = NULL;
     mMachineGunCheckbox = NULL;
-    mBomberCheckbox = NULL;
+    mLightSpeedCheckbox = NULL;
     mUglyChainCheckbox = NULL;
     mMovingHoleCheckbox = NULL;
-    mMaxPowerCheckbox = NULL;
     mCombolessCheckbox = NULL;
     mGapFreeCheckbox = NULL;
     mChainCountCheckbox = NULL;
@@ -477,10 +468,9 @@ void ModesDialog::PrepareClose()
     mNoSwapCheckbox = NULL;
     mSonicCheckbox = NULL;
     mMachineGunCheckbox = NULL;
-    mBomberCheckbox = NULL;
+    mLightSpeedCheckbox = NULL;
     mUglyChainCheckbox = NULL;
     mMovingHoleCheckbox = NULL;
-    mMaxPowerCheckbox = NULL;
     mCombolessCheckbox = NULL;
     mGapFreeCheckbox = NULL;
     mChainCountCheckbox = NULL;
@@ -801,8 +791,6 @@ void ModesDialog::OpenModePicker(ModesCatalog::ModeId theId)
         app->DoSonicDialog();
     else if (def->id == ModesCatalog::Mode_MovingHole)
         app->DoMovingHoleDialog();
-    else if (def->id == ModesCatalog::Mode_MaxPower)
-        app->DoMaxPowerDialog();
     else if (def->id == ModesCatalog::Mode_ChainCount)
         app->DoChainCountDialog();
     else if (def->id == ModesCatalog::Mode_ColorShift)
@@ -944,9 +932,9 @@ bool ModesDialog::IsMachineGunSelected() const
     return mMachineGunCheckbox != NULL && mMachineGunCheckbox->IsChecked();
 }
 
-bool ModesDialog::IsBomberSelected() const
+bool ModesDialog::IsLightSpeedSelected() const
 {
-    return mBomberCheckbox != NULL && mBomberCheckbox->IsChecked();
+    return mLightSpeedCheckbox != NULL && mLightSpeedCheckbox->IsChecked();
 }
 
 bool ModesDialog::IsUglyChainSelected() const
@@ -957,11 +945,6 @@ bool ModesDialog::IsUglyChainSelected() const
 bool ModesDialog::IsMovingHoleSelected() const
 {
     return mMovingHoleCheckbox != NULL && mMovingHoleCheckbox->IsChecked();
-}
-
-bool ModesDialog::IsMaxPowerSelected() const
-{
-    return mMaxPowerCheckbox != NULL && mMaxPowerCheckbox->IsChecked();
 }
 
 bool ModesDialog::IsCombolessSelected() const
@@ -1102,37 +1085,6 @@ void ModesDialog::SetMovingHoleSelected(bool selected)
 {
     if (mMovingHoleCheckbox != NULL)
         mMovingHoleCheckbox->SetChecked(selected, false);
-    MarkDirty();
-}
-
-int ModesDialog::GetMaxPowerPercent() const
-{
-    return mPendingMaxPowerPercent;
-}
-
-void ModesDialog::SetMaxPowerPercent(int percent)
-{
-    if (percent < 0)
-        percent = 0;
-    if (percent > 100)
-        percent = 100;
-    mPendingMaxPowerPercent = percent;
-}
-
-bool ModesDialog::GetMaxPowerQuietSounds() const
-{
-    return mPendingMaxPowerQuietSounds;
-}
-
-void ModesDialog::SetMaxPowerQuietSounds(bool quiet)
-{
-    mPendingMaxPowerQuietSounds = quiet;
-}
-
-void ModesDialog::SetMaxPowerSelected(bool selected)
-{
-    if (mMaxPowerCheckbox != NULL)
-        mMaxPowerCheckbox->SetChecked(selected, false);
     MarkDirty();
 }
 

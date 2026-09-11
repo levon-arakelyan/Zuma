@@ -340,6 +340,10 @@ bool Gun::StartFire(bool recoil)
 
     CalcAngle();
 
+    // Light Speed: release the shot this frame (no muzzle travel animation).
+    if (app != NULL && app->mLightSpeedMode)
+        ForceFinishShot();
+
     return true;
 }
 

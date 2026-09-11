@@ -63,16 +63,12 @@ namespace Sexy
         bool mNoSwapMode;
         bool mSonicMode;
         bool mMachineGunMode;
-        bool mBomberMode;
         bool mUglyChainMode;
         bool mMovingHoleMode;
         float mChainSpeedMultiplier;
         int mMovingHoleSpeed; // 0 = Steady, 100 = Ultra fast
         // Append new mode fields at the end so existing member offsets stay stable
         // across incremental MSVC builds (shifting mid-class fields caused quit ODR crashes).
-        bool mMaxPowerMode;
-        int mMaxPowerPercent; // 0-100% of spawned balls that get a power-up
-        bool mMaxPowerQuietSounds;
         bool mCombolessMode;
         bool mGapFreeMode;
         bool mChainCountMode;
@@ -96,6 +92,7 @@ namespace Sexy
         bool mKillerBallMode;
         float mKillerBallIntervalSec; // seconds between killer launches
         float mKillerBallFlightSec;   // seconds for killer to reach the frog
+        bool mLightSpeedMode; // frog shots reach destination instantly
 
         bool IsColorBanned(int theColor) const;
         void RollRandomBannedColors(int theNumColors = -1);
@@ -149,7 +146,6 @@ namespace Sexy
         void DoUnpoweredDialog();
         void DoSonicDialog();
         void DoMovingHoleDialog();
-        void DoMaxPowerDialog();
         void DoChainCountDialog();
         void DoColorShiftDialog();
         void DoColorShiftTargetDialog(int theSrcColor, int initialDest);
@@ -179,7 +175,6 @@ namespace Sexy
         void FinishUnpoweredDialog(bool apply);
         void FinishSonicDialog(bool apply);
         void FinishMovingHoleDialog(bool apply);
-        void FinishMaxPowerDialog(bool apply);
         void FinishChainCountDialog(bool apply);
         void FinishColorShiftDialog(bool apply);
         void FinishColorShiftTargetDialog(bool apply);
