@@ -85,6 +85,7 @@ namespace Sexy
         DialogType_ColorShiftTarget = 32,
         DialogType_Invisible = 33,
         DialogType_KillerBall = 34,
+        DialogType_ShootSpeed = 35,
         DialogType_Max,
     };
 

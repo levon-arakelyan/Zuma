@@ -322,7 +322,18 @@ bool Gun::StartFire(bool recoil)
     float vx = cosf(rad);
     float vy = -sinf(rad);
 
-    aBullet->SetVelocity(vx * mFireVel, vy * mFireVel);
+    float speed = mFireVel;
+    if (app != NULL && app->mShootSpeedMode && !app->mShootSpeedInstant)
+    {
+        float mult = app->mShootSpeedMultiplier;
+        if (mult < 0.1f)
+            mult = 0.1f;
+        if (mult > 5.0f)
+            mult = 5.0f;
+        speed *= mult;
+    }
+
+    aBullet->SetVelocity(vx * speed, vy * speed);
     aBullet->SetPos(
         -40.0f * vx + aBullet->GetX(),
         -40.0f * vy + aBullet->GetY());
@@ -340,8 +351,8 @@ bool Gun::StartFire(bool recoil)
 
     CalcAngle();
 
-    // Light Speed: release the shot this frame (no muzzle travel animation).
-    if (app != NULL && app->mLightSpeedMode)
+    // Instant shoot-speed: release the shot this frame (no muzzle travel animation).
+    if (app != NULL && app->mShootSpeedMode && app->mShootSpeedInstant)
         ForceFinishShot();
 
     return true;

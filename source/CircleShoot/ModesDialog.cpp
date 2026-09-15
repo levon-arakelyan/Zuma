@@ -55,10 +55,6 @@ namespace ModesCatalog
         "The frog cannot swap colors with right-click, and the next ball color is hidden.";
     const char *const kSonicDescription =
         "Increase the ball chain speed. When enabled, choose a multiplier from 1x to 10x (in 0.5 steps).";
-    const char *const kMachineGunDescription =
-        "No fire-rate limit. Every left click throws a ball immediately, even while the frog is still animating.";
-    const char *const kLightSpeedDescription =
-        "Frog shots reach their destination instantly — no travel time or flight animation.";
     const char *const kUglyChainDescription =
         "The rolling chain never places the same color next to itself. Every neighbor pair is a different color.";
     const char *const kMovingHoleDescription =
@@ -81,6 +77,8 @@ namespace ModesCatalog
         "Levels start and advance immediately with no path-cracking or stage transition animations. After a loss, the level restarts immediately (or shows results on game over).";
     const char *const kKillerBallDescription =
         "Periodically a chain ball becomes a killer and flies at the frog. Shoot it with the matching color to destroy it. Choose spawn interval and flight time.";
+    const char *const kShootSpeedDescription =
+        "Change how fast frog shots travel. Choose a multiplier from 0.1x to 5x, or make shots reach their destination instantly.";
 
     // --- Widget ids ---
     const int kGroupListId = 0;
@@ -96,7 +94,6 @@ namespace ModesCatalog
 
     static const GroupDef kGroups[] = {
         {Group_GameMechanics, "Game Mechanics"},
-        {Group_Overpowered, "Overpowered"},
         {Group_Challenges, "Challenges"},
     };
     static const int kGroupCount = sizeof(kGroups) / sizeof(kGroups[0]);
@@ -127,8 +124,7 @@ namespace ModesCatalog
         {Mode_Bankrupt, Group_GameMechanics, "Bankrupt", kBankruptDescription, false},
         {Mode_BaseMinimum, Group_GameMechanics, "Base Minimum", kBaseMinimumDescription, false},
         {Mode_AutoAdvance, Group_GameMechanics, "Auto-advance", kAutoAdvanceDescription, false},
-        {Mode_MachineGun, Group_Overpowered, "Machine gun", kMachineGunDescription, false},
-        {Mode_LightSpeed, Group_Overpowered, "Light Speed", kLightSpeedDescription, false},
+        {Mode_ShootSpeed, Group_GameMechanics, "Shoot speed", kShootSpeedDescription, true},
     };
     static const int kModeCount = sizeof(kModes) / sizeof(kModes[0]);
 
@@ -294,8 +290,6 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
     mUnpoweredCheckbox = mModeSlots[ModesCatalog::Mode_Unpowered].mCheckbox;
     mNoSwapCheckbox = mModeSlots[ModesCatalog::Mode_NoSwap].mCheckbox;
     mSonicCheckbox = mModeSlots[ModesCatalog::Mode_Sonic].mCheckbox;
-    mMachineGunCheckbox = mModeSlots[ModesCatalog::Mode_MachineGun].mCheckbox;
-    mLightSpeedCheckbox = mModeSlots[ModesCatalog::Mode_LightSpeed].mCheckbox;
     mUglyChainCheckbox = mModeSlots[ModesCatalog::Mode_UglyChain].mCheckbox;
     mMovingHoleCheckbox = mModeSlots[ModesCatalog::Mode_MovingHole].mCheckbox;
     mCombolessCheckbox = mModeSlots[ModesCatalog::Mode_Comboless].mCheckbox;
@@ -307,6 +301,7 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
     mBaseMinimumCheckbox = mModeSlots[ModesCatalog::Mode_BaseMinimum].mCheckbox;
     mAutoAdvanceCheckbox = mModeSlots[ModesCatalog::Mode_AutoAdvance].mCheckbox;
     mKillerBallCheckbox = mModeSlots[ModesCatalog::Mode_KillerBall].mCheckbox;
+    mShootSpeedCheckbox = mModeSlots[ModesCatalog::Mode_ShootSpeed].mCheckbox;
 
     CircleShootApp *app = GetCircleShootApp();
     if (mColorsBanCheckbox != NULL)
@@ -317,10 +312,6 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
         mNoSwapCheckbox->mChecked = app->mNoSwapMode;
     if (mSonicCheckbox != NULL)
         mSonicCheckbox->mChecked = app->mSonicMode;
-    if (mMachineGunCheckbox != NULL)
-        mMachineGunCheckbox->mChecked = app->mMachineGunMode;
-    if (mLightSpeedCheckbox != NULL)
-        mLightSpeedCheckbox->mChecked = app->mLightSpeedMode;
     if (mUglyChainCheckbox != NULL)
         mUglyChainCheckbox->mChecked = app->mUglyChainMode;
     if (mMovingHoleCheckbox != NULL)
@@ -343,6 +334,8 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
         mAutoAdvanceCheckbox->mChecked = app->mAutoAdvanceMode;
     if (mKillerBallCheckbox != NULL)
         mKillerBallCheckbox->mChecked = app->mKillerBallMode;
+    if (mShootSpeedCheckbox != NULL)
+        mShootSpeedCheckbox->mChecked = app->mShootSpeedMode || app->mLightSpeedMode;
 
     for (int i = 0; i < MAX_BALL_COLORS; i++)
         mPendingBannedColors[i] = app->mBannedColors[i];
@@ -385,6 +378,10 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
     mPendingKillerBallFlightSec = app->mKillerBallFlightSec;
     if (mPendingKillerBallFlightSec < 2.0f || mPendingKillerBallFlightSec > 10.0f)
         mPendingKillerBallFlightSec = 10.0f;
+    mPendingShootSpeedMultiplier = app->mShootSpeedMultiplier;
+    if (mPendingShootSpeedMultiplier < 0.1f || mPendingShootSpeedMultiplier > 5.0f)
+        mPendingShootSpeedMultiplier = 1.0f;
+    mPendingShootSpeedInstant = app->mShootSpeedInstant || app->mLightSpeedMode;
 
     for (int i = 0; i < ModesCatalog::kGroupCount; i++)
         mGroupList->AddLine(ModesCatalog::kGroups[i].name, false);
@@ -408,8 +405,6 @@ ModesDialog::~ModesDialog()
     mUnpoweredCheckbox = NULL;
     mNoSwapCheckbox = NULL;
     mSonicCheckbox = NULL;
-    mMachineGunCheckbox = NULL;
-    mLightSpeedCheckbox = NULL;
     mUglyChainCheckbox = NULL;
     mMovingHoleCheckbox = NULL;
     mCombolessCheckbox = NULL;
@@ -421,6 +416,7 @@ ModesDialog::~ModesDialog()
     mBaseMinimumCheckbox = NULL;
     mAutoAdvanceCheckbox = NULL;
     mKillerBallCheckbox = NULL;
+    mShootSpeedCheckbox = NULL;
 
     delete mModesPane;
     mModesPane = NULL;
@@ -467,8 +463,6 @@ void ModesDialog::PrepareClose()
     mUnpoweredCheckbox = NULL;
     mNoSwapCheckbox = NULL;
     mSonicCheckbox = NULL;
-    mMachineGunCheckbox = NULL;
-    mLightSpeedCheckbox = NULL;
     mUglyChainCheckbox = NULL;
     mMovingHoleCheckbox = NULL;
     mCombolessCheckbox = NULL;
@@ -480,6 +474,7 @@ void ModesDialog::PrepareClose()
     mBaseMinimumCheckbox = NULL;
     mAutoAdvanceCheckbox = NULL;
     mKillerBallCheckbox = NULL;
+    mShootSpeedCheckbox = NULL;
 
     delete mModesPane;
     mModesPane = NULL;
@@ -799,6 +794,8 @@ void ModesDialog::OpenModePicker(ModesCatalog::ModeId theId)
         app->DoInvisibleDialog();
     else if (def->id == ModesCatalog::Mode_KillerBall)
         app->DoKillerBallDialog();
+    else if (def->id == ModesCatalog::Mode_ShootSpeed)
+        app->DoShootSpeedDialog();
 }
 
 void ModesDialog::ButtonMouseEnter(int theId)
@@ -927,16 +924,6 @@ bool ModesDialog::IsSonicSelected() const
     return mSonicCheckbox != NULL && mSonicCheckbox->IsChecked();
 }
 
-bool ModesDialog::IsMachineGunSelected() const
-{
-    return mMachineGunCheckbox != NULL && mMachineGunCheckbox->IsChecked();
-}
-
-bool ModesDialog::IsLightSpeedSelected() const
-{
-    return mLightSpeedCheckbox != NULL && mLightSpeedCheckbox->IsChecked();
-}
-
 bool ModesDialog::IsUglyChainSelected() const
 {
     return mUglyChainCheckbox != NULL && mUglyChainCheckbox->IsChecked();
@@ -990,6 +977,11 @@ bool ModesDialog::IsAutoAdvanceSelected() const
 bool ModesDialog::IsKillerBallSelected() const
 {
     return mKillerBallCheckbox != NULL && mKillerBallCheckbox->IsChecked();
+}
+
+bool ModesDialog::IsShootSpeedSelected() const
+{
+    return mShootSpeedCheckbox != NULL && mShootSpeedCheckbox->IsChecked();
 }
 
 void ModesDialog::GetBannedColors(bool outBanned[MAX_BALL_COLORS]) const
@@ -1264,6 +1256,37 @@ void ModesDialog::SetKillerBallSelected(bool selected)
 {
     if (mKillerBallCheckbox != NULL)
         mKillerBallCheckbox->SetChecked(selected, false);
+    MarkDirty();
+}
+
+float ModesDialog::GetShootSpeedMultiplier() const
+{
+    return mPendingShootSpeedMultiplier;
+}
+
+void ModesDialog::SetShootSpeedMultiplier(float multiplier)
+{
+    if (multiplier < 0.1f)
+        multiplier = 0.1f;
+    if (multiplier > 5.0f)
+        multiplier = 5.0f;
+    mPendingShootSpeedMultiplier = multiplier;
+}
+
+bool ModesDialog::GetShootSpeedInstant() const
+{
+    return mPendingShootSpeedInstant;
+}
+
+void ModesDialog::SetShootSpeedInstant(bool instant)
+{
+    mPendingShootSpeedInstant = instant;
+}
+
+void ModesDialog::SetShootSpeedSelected(bool selected)
+{
+    if (mShootSpeedCheckbox != NULL)
+        mShootSpeedCheckbox->SetChecked(selected, false);
     MarkDirty();
 }
 

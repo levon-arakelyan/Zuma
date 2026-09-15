@@ -1,19 +1,18 @@
 Bugs
-1. Killer Ball mode:
+1. Killer Ball:
 a) Last ball in chain should not become killer
 b) Accuracy ray should target to killer ball
-3) Bomb power up should destroy killer ball if its nearby (with same animation, but without explosion audio)
-
-2. Color Shift mode
+c) Bomb power up should destroy killer ball if its nearby (with same animation, but without explosion audio)
+d) Give points when player destroys killer bomb
+2. Color Shift
 Balls are only allowed to be shifted to allowed colors (for example, no white ball shift in 1.1 level)
-
-3․ Sonic Speed mode
+3․ Sonic Speed
 When chain accelaration ends, chain speed is normal for ~1s, and only then it becomes the specified speed multiplier
-
-4. Moving Hole mode
+4. Moving Hole
 If mode is enabled, then user goes to main menu and disables mode, then continues the game, hole continues to move
 (and when user opens Modes menu, Moving hole is enabled)
-
-5. Auto-Adnvance mode
+5. Auto-Adnvance
 After 13.1 level, 1.1 level starts automatically, and after clearing the level, 1.1 starts again, and forever
 (correct behavior: the end credits should begin)
+6. Invisible
+At least one ball in the chain should never become invisible

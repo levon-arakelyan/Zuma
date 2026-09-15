@@ -93,6 +93,9 @@ namespace Sexy
         float mKillerBallIntervalSec; // seconds between killer launches
         float mKillerBallFlightSec;   // seconds for killer to reach the frog
         bool mLightSpeedMode; // frog shots reach destination instantly
+        bool mShootSpeedMode;
+        float mShootSpeedMultiplier; // 0.1x-5x when shoot speed is on and not instant
+        bool mShootSpeedInstant;     // mutually exclusive with the multiplier
 
         bool IsColorBanned(int theColor) const;
         void RollRandomBannedColors(int theNumColors = -1);
@@ -151,6 +154,7 @@ namespace Sexy
         void DoColorShiftTargetDialog(int theSrcColor, int initialDest);
         void DoInvisibleDialog();
         void DoKillerBallDialog();
+        void DoShootSpeedDialog();
         void DoModeHelpDialog(const std::string &theTitle, const std::string &theDescription);
         void DoConfirmContinueDialog(const std::string &theVerboseLevelString, const std::string &theDisplayName, int theScore);
         void DoGetReadyDialog();
@@ -180,6 +184,7 @@ namespace Sexy
         void FinishColorShiftTargetDialog(bool apply);
         void FinishInvisibleDialog(bool apply);
         void FinishKillerBallDialog(bool apply);
+        void FinishShootSpeedDialog(bool apply);
         void FinishConfirmMainMenuDialog(bool mainMenu);
         void FinishStatsDialog(bool);
 

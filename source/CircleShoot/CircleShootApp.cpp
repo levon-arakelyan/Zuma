@@ -29,6 +29,7 @@
 #include "ColorShiftTargetDialog.h"
 #include "InvisibleDialog.h"
 #include "KillerBallDialog.h"
+#include "ShootSpeedDialog.h"
 #include "ConfirmContinueDialog.h"
 #include "StatsDialog.h"
 #include "UserDialog.h"
@@ -125,6 +126,9 @@ CircleShootApp::CircleShootApp()
     mKillerBallIntervalSec = 10.0f;
     mKillerBallFlightSec = 10.0f;
     mLightSpeedMode = false;
+    mShootSpeedMode = false;
+    mShootSpeedMultiplier = 1.0f;
+    mShootSpeedInstant = false;
 }
 
 CircleShootApp::~CircleShootApp()
@@ -1142,6 +1146,20 @@ void CircleShootApp::DoKillerBallDialog()
     AddDialog(DialogType_KillerBall, dialog);
 }
 
+void CircleShootApp::DoShootSpeedDialog()
+{
+    if (GetDialog(DialogType_ShootSpeed) != NULL)
+        return;
+
+    ModesDialog *modes = (ModesDialog *)GetDialog(DialogType_Modes);
+    float multiplier = (modes != NULL) ? modes->GetShootSpeedMultiplier() : mShootSpeedMultiplier;
+    bool instant = (modes != NULL) ? modes->GetShootSpeedInstant() : (mShootSpeedInstant || mLightSpeedMode);
+
+    Dialog *dialog = new ShootSpeedDialog(multiplier, instant);
+    SetupDialog(dialog, 420);
+    AddDialog(DialogType_ShootSpeed, dialog);
+}
+
 void CircleShootApp::DoModeHelpDialog(const std::string &theTitle, const std::string &theDescription)
 {
     KillDialog(DialogType_ModeHelp);
@@ -1271,8 +1289,6 @@ void CircleShootApp::FinishModesDialog(bool apply)
     bool unpowered = false;
     bool noSwap = false;
     bool sonic = false;
-    bool machineGun = false;
-    bool lightSpeed = false;
     bool uglyChain = false;
     bool movingHole = false;
     bool comboless = false;
@@ -1284,6 +1300,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
     bool baseMinimum = false;
     bool autoAdvance = false;
     bool killerBall = false;
+    bool shootSpeed = false;
     bool bannedColors[MAX_BALL_COLORS];
     bool disabledPowerUps[PowerType_Max];
     float chainSpeed = 1.0f;
@@ -1299,6 +1316,8 @@ void CircleShootApp::FinishModesDialog(bool apply)
     int invisiblePercent = 50;
     float killerBallIntervalSec = 10.0f;
     float killerBallFlightSec = 10.0f;
+    float shootSpeedMultiplier = 1.0f;
+    bool shootSpeedInstant = false;
     bool colorsBanRandom = false;
     int colorsBanRandomCount = 1;
     for (int i = 0; i < MAX_BALL_COLORS; i++)
@@ -1317,8 +1336,6 @@ void CircleShootApp::FinishModesDialog(bool apply)
         dialog->GetDisabledPowerUps(disabledPowerUps);
         noSwap = dialog->IsNoSwapSelected();
         sonic = dialog->IsSonicSelected();
-        machineGun = dialog->IsMachineGunSelected();
-        lightSpeed = dialog->IsLightSpeedSelected();
         uglyChain = dialog->IsUglyChainSelected();
         movingHole = dialog->IsMovingHoleSelected();
         comboless = dialog->IsCombolessSelected();
@@ -1330,6 +1347,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
         baseMinimum = dialog->IsBaseMinimumSelected();
         autoAdvance = dialog->IsAutoAdvanceSelected();
         killerBall = dialog->IsKillerBallSelected();
+        shootSpeed = dialog->IsShootSpeedSelected();
         chainSpeed = dialog->GetChainSpeedMultiplier();
         movingHoleSpeed = dialog->GetMovingHoleSpeed();
         chainBonusThreshold = dialog->GetChainBonusThreshold();
@@ -1343,6 +1361,8 @@ void CircleShootApp::FinishModesDialog(bool apply)
         invisiblePercent = dialog->GetInvisiblePercent();
         killerBallIntervalSec = dialog->GetKillerBallIntervalSec();
         killerBallFlightSec = dialog->GetKillerBallFlightSec();
+        shootSpeedMultiplier = dialog->GetShootSpeedMultiplier();
+        shootSpeedInstant = dialog->GetShootSpeedInstant();
     }
 
     dialog->PrepareClose();
@@ -1356,6 +1376,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
     KillDialog(DialogType_ColorShift);
     KillDialog(DialogType_Invisible);
     KillDialog(DialogType_KillerBall);
+    KillDialog(DialogType_ShootSpeed);
     KillDialog(DialogType_ModeHelp);
     KillDialog(DialogType_Modes);
 
@@ -1374,8 +1395,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
 
         mNoSwapMode = noSwap;
         mSonicMode = sonic;
-        mMachineGunMode = machineGun;
-        mLightSpeedMode = lightSpeed;
+        mMachineGunMode = false;
         mUglyChainMode = uglyChain;
         mMovingHoleMode = movingHole;
         mCombolessMode = comboless;
@@ -1403,6 +1423,14 @@ void CircleShootApp::FinishModesDialog(bool apply)
         mKillerBallMode = killerBall;
         mKillerBallIntervalSec = killerBallIntervalSec;
         mKillerBallFlightSec = killerBallFlightSec;
+        mShootSpeedMode = shootSpeed;
+        mShootSpeedMultiplier = shootSpeedMultiplier;
+        if (mShootSpeedMultiplier < 0.1f)
+            mShootSpeedMultiplier = 0.1f;
+        if (mShootSpeedMultiplier > 5.0f)
+            mShootSpeedMultiplier = 5.0f;
+        mShootSpeedInstant = shootSpeed && shootSpeedInstant;
+        mLightSpeedMode = mShootSpeedMode && mShootSpeedInstant;
     }
 }
 
@@ -1577,6 +1605,26 @@ void CircleShootApp::FinishKillerBallDialog(bool apply)
     }
 
     KillDialog(DialogType_KillerBall);
+}
+
+void CircleShootApp::FinishShootSpeedDialog(bool apply)
+{
+    ShootSpeedDialog *speedDialog = (ShootSpeedDialog *)GetDialog(DialogType_ShootSpeed);
+    ModesDialog *modesDialog = (ModesDialog *)GetDialog(DialogType_Modes);
+    if (speedDialog == NULL)
+        return;
+
+    if (apply)
+    {
+        if (modesDialog != NULL)
+        {
+            modesDialog->SetShootSpeedMultiplier(speedDialog->GetMultiplier());
+            modesDialog->SetShootSpeedInstant(speedDialog->GetInstant());
+            modesDialog->SetShootSpeedSelected(true);
+        }
+    }
+
+    KillDialog(DialogType_ShootSpeed);
 }
 
 void CircleShootApp::FinishColorShiftTargetDialog(bool apply)
@@ -1761,6 +1809,9 @@ bool CircleShootApp::CheckYesNoButton(int theButton)
         case 2034:
             FinishKillerBallDialog(true);
             return true;
+        case 2035:
+            FinishShootSpeedDialog(true);
+            return true;
         default:
             KillDialog(theButton - 2000);
             return true;
@@ -1837,6 +1888,9 @@ bool CircleShootApp::CheckYesNoButton(int theButton)
             return true;
         case 3034:
             FinishKillerBallDialog(false);
+            return true;
+        case 3035:
+            FinishShootSpeedDialog(false);
             return true;
         default:
             KillDialog(theButton - 3000);

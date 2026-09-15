@@ -596,7 +596,7 @@ void Board::AdvanceFreeBullet(BulletList::iterator &theBulletItr)
         return;
     }
 
-    if (mApp->mLightSpeedMode)
+    if (mApp->mShootSpeedMode && mApp->mShootSpeedInstant)
     {
         float vx = aBullet->GetVelX();
         float vy = aBullet->GetVelY();
@@ -618,6 +618,33 @@ void Board::AdvanceFreeBullet(BulletList::iterator &theBulletItr)
         delete *theBulletItr;
         theBulletItr = mBulletList.erase(theBulletItr);
         return;
+    }
+
+    if (mApp->mShootSpeedMode)
+    {
+        float vx = aBullet->GetVelX();
+        float vy = aBullet->GetVelY();
+        float mag = (float)sqrt((double)(vx * vx + vy * vy));
+        const float kStep = 4.0f;
+        if (mag > kStep)
+        {
+            int steps = (int)(mag / kStep + 0.999f);
+            if (steps < 1)
+                steps = 1;
+            if (steps > 500)
+                steps = 500;
+
+            aBullet->SetVelocity((vx / mag) * kStep, (vy / mag) * kStep);
+            for (int i = 0; i < steps; i++)
+            {
+                if (AdvancePlayerBulletStep(theBulletItr))
+                    return;
+            }
+
+            aBullet->SetVelocity(vx, vy);
+            ++theBulletItr;
+            return;
+        }
     }
 
     if (AdvancePlayerBulletStep(theBulletItr))

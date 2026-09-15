@@ -27,7 +27,6 @@ namespace Sexy
         enum GroupId
         {
             Group_GameMechanics = 0,
-            Group_Overpowered,
             Group_Challenges,
             Group_Count
         };
@@ -38,8 +37,6 @@ namespace Sexy
             Mode_Unpowered,
             Mode_NoSwap,
             Mode_Sonic,
-            Mode_MachineGun,
-            Mode_LightSpeed,
             Mode_UglyChain,
             Mode_MovingHole,
             Mode_Comboless,
@@ -51,6 +48,7 @@ namespace Sexy
             Mode_BaseMinimum,
             Mode_AutoAdvance,
             Mode_KillerBall,
+            Mode_ShootSpeed,
             Mode_Count
         };
     }
@@ -115,8 +113,6 @@ namespace Sexy
         bool IsUnpoweredSelected() const;
         bool IsNoSwapSelected() const;
         bool IsSonicSelected() const;
-        bool IsMachineGunSelected() const;
-        bool IsLightSpeedSelected() const;
         bool IsUglyChainSelected() const;
         bool IsMovingHoleSelected() const;
         bool IsCombolessSelected() const;
@@ -128,6 +124,7 @@ namespace Sexy
         bool IsBaseMinimumSelected() const;
         bool IsAutoAdvanceSelected() const;
         bool IsKillerBallSelected() const;
+        bool IsShootSpeedSelected() const;
 
         void GetBannedColors(bool outBanned[MAX_BALL_COLORS]) const;
         void SetBannedColors(const bool banned[MAX_BALL_COLORS]);
@@ -179,6 +176,12 @@ namespace Sexy
         void SetKillerBallFlightSec(float sec);
         void SetKillerBallSelected(bool selected);
 
+        float GetShootSpeedMultiplier() const;
+        void SetShootSpeedMultiplier(float multiplier);
+        bool GetShootSpeedInstant() const;
+        void SetShootSpeedInstant(bool instant);
+        void SetShootSpeedSelected(bool selected);
+
         void PrepareClose();
 
         // Named aliases kept for CircleShootApp / Finish* helpers
@@ -186,8 +189,6 @@ namespace Sexy
         Checkbox *mUnpoweredCheckbox;
         Checkbox *mNoSwapCheckbox;
         Checkbox *mSonicCheckbox;
-        Checkbox *mMachineGunCheckbox;
-        Checkbox *mLightSpeedCheckbox;
         Checkbox *mUglyChainCheckbox;
         Checkbox *mMovingHoleCheckbox;
         Checkbox *mCombolessCheckbox;
@@ -199,6 +200,7 @@ namespace Sexy
         Checkbox *mBaseMinimumCheckbox;
         Checkbox *mAutoAdvanceCheckbox;
         Checkbox *mKillerBallCheckbox;
+        Checkbox *mShootSpeedCheckbox;
 
         ModeWidgetSlot mModeSlots[ModesCatalog::Mode_Count];
 
@@ -223,6 +225,8 @@ namespace Sexy
         int mPendingInvisiblePercent;
         float mPendingKillerBallIntervalSec;
         float mPendingKillerBallFlightSec;
+        float mPendingShootSpeedMultiplier;
+        bool mPendingShootSpeedInstant;
         bool mPendingColorsBanRandom;
         int mPendingColorsBanRandomCount;
         int mHoveredHitId;
