@@ -178,6 +178,7 @@ Board::Board(CircleShootApp *theApp)
     mNextLevelDesc = new LevelDesc();
     mIsEndless = false;
     mKillerBallCooldown = 0;
+    mKillerHitFrog = false;
 }
 
 Board::~Board()
@@ -294,6 +295,7 @@ void Board::StartLevel()
     mGun->SetPos(mLevelDesc->mGunX, mLevelDesc->mGunY);
     mSoundMgr->PlayLoop(LoopType_RollIn);
     mLevelBeginning = true;
+    mKillerHitFrog = false;
 
     // First killer after one full interval from level start.
     if (mApp->mKillerBallMode)
@@ -451,6 +453,14 @@ void Board::CheckEndConditions()
     if (mGameState != GameState_Playing)
         return;
 
+    // Apply after the bullet loop so SetLosing cannot invalidate those iterators.
+    if (mKillerHitFrog)
+    {
+        mKillerHitFrog = false;
+        SetLosing();
+        return;
+    }
+
     int i;
     int mNumCurves = this->mNumCurves;
 
@@ -566,7 +576,7 @@ void Board::AdvanceFreeBullet(BulletList::iterator &theBulletItr)
             theBulletItr = mBulletList.erase(theBulletItr);
             PlayKillerExplosion(aX, aY, aType);
             ReleaseKillerBallColor(aType);
-            SetLosing();
+            mKillerHitFrog = true;
             return;
         }
 
@@ -1207,38 +1217,6 @@ void Board::ReleaseKillerBallColor(int theType)
         mBallColorMap.erase(anItr);
 }
 
-void Board::EnsureGunHasColor(int theType)
-{
-    Bullet *cur = mGun->GetBullet();
-    Bullet *next = mGun->GetNextBullet();
-
-    if (cur != NULL && cur->GetType() == theType)
-        return;
-    if (next != NULL && next->GetType() == theType)
-        return;
-
-    // No-swap: put defense color in the mouth. Otherwise prefer the next slot.
-    if (GetCircleShootApp()->mNoSwapMode)
-    {
-        if (cur != NULL)
-            mGun->SetBulletType(theType);
-        else
-            mGun->Reload(theType, !GetCircleShootApp()->mMachineGunMode, Sexy::PowerType_Max);
-    }
-    else if (next != NULL)
-    {
-        mGun->SetNextBulletType(theType);
-    }
-    else if (cur != NULL)
-    {
-        mGun->SetBulletType(theType);
-    }
-    else
-    {
-        mGun->Reload(theType, !GetCircleShootApp()->mMachineGunMode, Sexy::PowerType_Max);
-    }
-}
-
 void Board::ResolveKillerCollisions()
 {
     for (BulletList::iterator aShotItr = mBulletList.begin(); aShotItr != mBulletList.end();)
@@ -1290,7 +1268,7 @@ void Board::ResolveKillerCollisions()
 
 void Board::UpdateKillerBall()
 {
-    if (!mApp->mKillerBallMode || mGameState != GameState_Playing)
+    if (!mApp->mKillerBallMode || mGameState != GameState_Playing || mKillerHitFrog)
         return;
 
     if (mLevelBeginning || mPauseCount != 0)
@@ -1331,7 +1309,6 @@ void Board::UpdateKillerBall()
     if (killer != NULL)
     {
         mBulletList.push_back(killer);
-        EnsureGunHasColor(killer->GetType());
         mApp->PlaySample(Sexy::SOUND_BALLCLICK1);
         mKillerBallCooldown = (int)(intervalSec * 100.0f + 0.5f);
     }

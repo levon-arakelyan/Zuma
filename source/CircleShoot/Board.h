@@ -177,6 +177,7 @@ namespace Sexy
 		int mLevel;
 		int mMaxStage;
 		int mKillerBallCooldown; // frames until next killer launch
+		bool mKillerHitFrog;     // lose after this frame; do not SetLosing while iterating bullets
 
 		static void StaticLoadProc(void *theData);
 		void LoadProc();
@@ -207,7 +208,6 @@ namespace Sexy
 		void ResolveKillerCollisions();
 		void PlayKillerExplosion(float theX, float theY, int theType);
 		void ReleaseKillerBallColor(int theType);
-		void EnsureGunHasColor(int theType);
 		void UpdateMiscStuff();
 
 		void DrawTreasure(Graphics *g);
