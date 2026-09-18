@@ -16,3 +16,20 @@ After 13.1 level, 1.1 level starts automatically, and after clearing the level, 
 (correct behavior: the end credits should begin)
 6. Invisible
 At least one ball in the chain should never become invisible
+7. Chain Count
+In modal, checkbox and slider should be mutually exclusive
+8. No Swap
+When frog shoots ball, the animation of moving next ball to the mouse of frog is playing for small amount of time, but that
+animation should not exist (it suggests next color)
+9. Shoot speed
+In modal, when checkbox is clicked, the disabled color of "Shoot speed:..." should be same as in Color Shift modal
+(right now its gray, but should be yellow)
+
+Game
+7. When doing combo (balls are sucking back) and power up should be destroyed, play normal ball destroying sound,
+and sound of power up with 50% less sound.
+
+Modes modal
+8. When clicking on checkboxes, no sound is playing, but default checkbox enable/disable sound should play
+9. I should be able to scroll with mouse middle wheel
+10. Scrollbar colors should comply game colors (green-yellow-purple)
