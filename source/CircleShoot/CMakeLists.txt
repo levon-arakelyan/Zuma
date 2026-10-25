@@ -34,6 +34,7 @@ add_executable(Zuma WIN32
     InvisibleDialog.cpp
     KillerBallDialog.cpp
     ShootSpeedDialog.cpp
+    MultiFrogDialog.cpp
     ConfirmContinueDialog.cpp
     MoreGamesScreen.cpp
     OptionsDialog.cpp

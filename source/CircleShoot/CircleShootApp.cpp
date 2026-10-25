@@ -30,6 +30,7 @@
 #include "InvisibleDialog.h"
 #include "KillerBallDialog.h"
 #include "ShootSpeedDialog.h"
+#include "MultiFrogDialog.h"
 #include "ConfirmContinueDialog.h"
 #include "StatsDialog.h"
 #include "UserDialog.h"
@@ -129,6 +130,8 @@ CircleShootApp::CircleShootApp()
     mShootSpeedMode = false;
     mShootSpeedMultiplier = 1.0f;
     mShootSpeedInstant = false;
+    mMultiFrogMode = false;
+    mMultiFrogCount = 2;
 }
 
 CircleShootApp::~CircleShootApp()
@@ -1160,6 +1163,19 @@ void CircleShootApp::DoShootSpeedDialog()
     AddDialog(DialogType_ShootSpeed, dialog);
 }
 
+void CircleShootApp::DoMultiFrogDialog()
+{
+    if (GetDialog(DialogType_MultiFrog) != NULL)
+        return;
+
+    ModesDialog *modes = (ModesDialog *)GetDialog(DialogType_Modes);
+    int count = (modes != NULL) ? modes->GetMultiFrogCount() : mMultiFrogCount;
+
+    Dialog *dialog = new MultiFrogDialog(count);
+    SetupDialog(dialog, 400);
+    AddDialog(DialogType_MultiFrog, dialog);
+}
+
 void CircleShootApp::DoModeHelpDialog(const std::string &theTitle, const std::string &theDescription)
 {
     KillDialog(DialogType_ModeHelp);
@@ -1301,6 +1317,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
     bool autoAdvance = false;
     bool killerBall = false;
     bool shootSpeed = false;
+    bool multiFrog = false;
     bool bannedColors[MAX_BALL_COLORS];
     bool disabledPowerUps[PowerType_Max];
     float chainSpeed = 1.0f;
@@ -1320,6 +1337,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
     bool shootSpeedInstant = false;
     bool colorsBanRandom = false;
     int colorsBanRandomCount = 1;
+    int multiFrogCount = 2;
     for (int i = 0; i < MAX_BALL_COLORS; i++)
     {
         colorShiftMap[i] = (i + 1) % MAX_BALL_COLORS;
@@ -1348,6 +1366,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
         autoAdvance = dialog->IsAutoAdvanceSelected();
         killerBall = dialog->IsKillerBallSelected();
         shootSpeed = dialog->IsShootSpeedSelected();
+        multiFrog = dialog->IsMultiFrogSelected();
         chainSpeed = dialog->GetChainSpeedMultiplier();
         movingHoleSpeed = dialog->GetMovingHoleSpeed();
         chainBonusThreshold = dialog->GetChainBonusThreshold();
@@ -1363,6 +1382,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
         killerBallFlightSec = dialog->GetKillerBallFlightSec();
         shootSpeedMultiplier = dialog->GetShootSpeedMultiplier();
         shootSpeedInstant = dialog->GetShootSpeedInstant();
+        multiFrogCount = dialog->GetMultiFrogCount();
     }
 
     dialog->PrepareClose();
@@ -1377,6 +1397,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
     KillDialog(DialogType_Invisible);
     KillDialog(DialogType_KillerBall);
     KillDialog(DialogType_ShootSpeed);
+    KillDialog(DialogType_MultiFrog);
     KillDialog(DialogType_ModeHelp);
     KillDialog(DialogType_Modes);
 
@@ -1431,6 +1452,12 @@ void CircleShootApp::FinishModesDialog(bool apply)
             mShootSpeedMultiplier = 5.0f;
         mShootSpeedInstant = shootSpeed && shootSpeedInstant;
         mLightSpeedMode = mShootSpeedMode && mShootSpeedInstant;
+        mMultiFrogMode = multiFrog;
+        mMultiFrogCount = multiFrogCount;
+        if (mMultiFrogCount < 1)
+            mMultiFrogCount = 1;
+        if (mMultiFrogCount > 4)
+            mMultiFrogCount = 4;
     }
 }
 
@@ -1627,6 +1654,25 @@ void CircleShootApp::FinishShootSpeedDialog(bool apply)
     KillDialog(DialogType_ShootSpeed);
 }
 
+void CircleShootApp::FinishMultiFrogDialog(bool apply)
+{
+    MultiFrogDialog *frogDialog = (MultiFrogDialog *)GetDialog(DialogType_MultiFrog);
+    ModesDialog *modesDialog = (ModesDialog *)GetDialog(DialogType_Modes);
+    if (frogDialog == NULL)
+        return;
+
+    if (apply)
+    {
+        if (modesDialog != NULL)
+        {
+            modesDialog->SetMultiFrogCount(frogDialog->GetFrogCount());
+            modesDialog->SetMultiFrogSelected(true);
+        }
+    }
+
+    KillDialog(DialogType_MultiFrog);
+}
+
 void CircleShootApp::FinishColorShiftTargetDialog(bool apply)
 {
     ColorShiftTargetDialog *targetDialog =
@@ -1812,6 +1858,9 @@ bool CircleShootApp::CheckYesNoButton(int theButton)
         case 2035:
             FinishShootSpeedDialog(true);
             return true;
+        case 2036:
+            FinishMultiFrogDialog(true);
+            return true;
         default:
             KillDialog(theButton - 2000);
             return true;
@@ -1891,6 +1940,9 @@ bool CircleShootApp::CheckYesNoButton(int theButton)
             return true;
         case 3035:
             FinishShootSpeedDialog(false);
+            return true;
+        case 3036:
+            FinishMultiFrogDialog(false);
             return true;
         default:
             KillDialog(theButton - 3000);

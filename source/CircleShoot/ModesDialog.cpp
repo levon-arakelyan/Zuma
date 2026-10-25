@@ -79,6 +79,8 @@ namespace ModesCatalog
         "Periodically a chain ball becomes a killer and flies at the frog. Shoot it with the matching color to destroy it. Choose spawn interval and flight time.";
     const char *const kShootSpeedDescription =
         "Change how fast frog shots travel. Choose a multiplier from 0.1x to 5x, or make shots reach their destination instantly.";
+    const char *const kMultiFrogDescription =
+        "Adds extra frogs in the original frog space. Each frog shows an equal slice of the sprite (for example 3 frogs each show one third). Choose 1 to 4 frogs. Each shot fires one ball per frog. The cursor frog is drawn on top.";
 
     // --- Widget ids ---
     const int kGroupListId = 0;
@@ -116,6 +118,7 @@ namespace ModesCatalog
         {Mode_ColorShift, Group_Challenges, "Color shift", kColorShiftDescription, true},
         {Mode_Invisible, Group_Challenges, "Invisible", kInvisibleDescription, true},
         {Mode_KillerBall, Group_Challenges, "Killer Ball", kKillerBallDescription, true},
+        {Mode_MultiFrog, Group_Challenges, "Multi-frog", kMultiFrogDescription, true},
         {Mode_Unpowered, Group_GameMechanics, "Unpowered", kUnpoweredDescription, true},
         {Mode_NoSwap, Group_GameMechanics, "No swap", kNoSwapDescription, false},
         {Mode_Comboless, Group_GameMechanics, "Comboless", kCombolessDescription, false},
@@ -302,6 +305,7 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
     mAutoAdvanceCheckbox = mModeSlots[ModesCatalog::Mode_AutoAdvance].mCheckbox;
     mKillerBallCheckbox = mModeSlots[ModesCatalog::Mode_KillerBall].mCheckbox;
     mShootSpeedCheckbox = mModeSlots[ModesCatalog::Mode_ShootSpeed].mCheckbox;
+    mMultiFrogCheckbox = mModeSlots[ModesCatalog::Mode_MultiFrog].mCheckbox;
 
     CircleShootApp *app = GetCircleShootApp();
     if (mColorsBanCheckbox != NULL)
@@ -336,6 +340,8 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
         mKillerBallCheckbox->mChecked = app->mKillerBallMode;
     if (mShootSpeedCheckbox != NULL)
         mShootSpeedCheckbox->mChecked = app->mShootSpeedMode || app->mLightSpeedMode;
+    if (mMultiFrogCheckbox != NULL)
+        mMultiFrogCheckbox->mChecked = app->mMultiFrogMode;
 
     for (int i = 0; i < MAX_BALL_COLORS; i++)
         mPendingBannedColors[i] = app->mBannedColors[i];
@@ -382,6 +388,9 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
     if (mPendingShootSpeedMultiplier < 0.1f || mPendingShootSpeedMultiplier > 5.0f)
         mPendingShootSpeedMultiplier = 1.0f;
     mPendingShootSpeedInstant = app->mShootSpeedInstant || app->mLightSpeedMode;
+    mPendingMultiFrogCount = app->mMultiFrogCount;
+    if (mPendingMultiFrogCount < 1 || mPendingMultiFrogCount > 4)
+        mPendingMultiFrogCount = 2;
 
     for (int i = 0; i < ModesCatalog::kGroupCount; i++)
         mGroupList->AddLine(ModesCatalog::kGroups[i].name, false);
@@ -417,6 +426,7 @@ ModesDialog::~ModesDialog()
     mAutoAdvanceCheckbox = NULL;
     mKillerBallCheckbox = NULL;
     mShootSpeedCheckbox = NULL;
+    mMultiFrogCheckbox = NULL;
 
     delete mModesPane;
     mModesPane = NULL;
@@ -475,6 +485,7 @@ void ModesDialog::PrepareClose()
     mAutoAdvanceCheckbox = NULL;
     mKillerBallCheckbox = NULL;
     mShootSpeedCheckbox = NULL;
+    mMultiFrogCheckbox = NULL;
 
     delete mModesPane;
     mModesPane = NULL;
@@ -796,6 +807,8 @@ void ModesDialog::OpenModePicker(ModesCatalog::ModeId theId)
         app->DoKillerBallDialog();
     else if (def->id == ModesCatalog::Mode_ShootSpeed)
         app->DoShootSpeedDialog();
+    else if (def->id == ModesCatalog::Mode_MultiFrog)
+        app->DoMultiFrogDialog();
 }
 
 void ModesDialog::ButtonMouseEnter(int theId)
@@ -982,6 +995,11 @@ bool ModesDialog::IsKillerBallSelected() const
 bool ModesDialog::IsShootSpeedSelected() const
 {
     return mShootSpeedCheckbox != NULL && mShootSpeedCheckbox->IsChecked();
+}
+
+bool ModesDialog::IsMultiFrogSelected() const
+{
+    return mMultiFrogCheckbox != NULL && mMultiFrogCheckbox->IsChecked();
 }
 
 void ModesDialog::GetBannedColors(bool outBanned[MAX_BALL_COLORS]) const
@@ -1287,6 +1305,27 @@ void ModesDialog::SetShootSpeedSelected(bool selected)
 {
     if (mShootSpeedCheckbox != NULL)
         mShootSpeedCheckbox->SetChecked(selected, false);
+    MarkDirty();
+}
+
+int ModesDialog::GetMultiFrogCount() const
+{
+    return mPendingMultiFrogCount;
+}
+
+void ModesDialog::SetMultiFrogCount(int theCount)
+{
+    if (theCount < 1)
+        theCount = 1;
+    if (theCount > 4)
+        theCount = 4;
+    mPendingMultiFrogCount = theCount;
+}
+
+void ModesDialog::SetMultiFrogSelected(bool selected)
+{
+    if (mMultiFrogCheckbox != NULL)
+        mMultiFrogCheckbox->SetChecked(selected, false);
     MarkDirty();
 }
 

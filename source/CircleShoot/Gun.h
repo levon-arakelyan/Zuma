@@ -93,7 +93,14 @@ public:
 	void SetNextBulletType(int theType);
 	void DoBlink(bool wink = false);
 
-	
+	// Append-only: extra chamber shots for Multi-frog (same layout-stability rule as app modes).
+	enum { kMaxExtraFrogShots = 5 };
+	Bullet *mExtraBullets[kMaxExtraFrogShots];
+	int mExtraBulletCount;
+	void ClearExtraBullets();
+	void ReleaseExtraBullets();
+	Bullet *CreateRotatedBullet(Bullet *theSrc, float theAngleDelta);
+	void DrawFrogLayers(Graphics *g, float theAngle, int theCX, int theCY, bool hasChamber, bool applyWink, bool drawBase = true, bool drawCover = true);
 };
 void GunDeleteGlobals();
 

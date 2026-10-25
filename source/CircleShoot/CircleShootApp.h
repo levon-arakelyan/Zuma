@@ -96,6 +96,8 @@ namespace Sexy
         bool mShootSpeedMode;
         float mShootSpeedMultiplier; // 0.1x-5x when shoot speed is on and not instant
         bool mShootSpeedInstant;     // mutually exclusive with the multiplier
+        bool mMultiFrogMode;         // extra frogs equally spaced around the gun
+        int mMultiFrogCount;         // 1-4 frogs when multi-frog is on
 
         bool IsColorBanned(int theColor) const;
         void RollRandomBannedColors(int theNumColors = -1);
@@ -155,6 +157,7 @@ namespace Sexy
         void DoInvisibleDialog();
         void DoKillerBallDialog();
         void DoShootSpeedDialog();
+        void DoMultiFrogDialog();
         void DoModeHelpDialog(const std::string &theTitle, const std::string &theDescription);
         void DoConfirmContinueDialog(const std::string &theVerboseLevelString, const std::string &theDisplayName, int theScore);
         void DoGetReadyDialog();
@@ -185,6 +188,7 @@ namespace Sexy
         void FinishInvisibleDialog(bool apply);
         void FinishKillerBallDialog(bool apply);
         void FinishShootSpeedDialog(bool apply);
+        void FinishMultiFrogDialog(bool apply);
         void FinishConfirmMainMenuDialog(bool mainMenu);
         void FinishStatsDialog(bool);
 

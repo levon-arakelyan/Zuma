@@ -21,7 +21,146 @@ using namespace Sexy;
 
 Sexy::MemoryImage *gShooterTop = 0;
 
+static const int kFrogSliceSize = 108;
+static const int kFrogSliceHalf = 54;
+static MemoryImage *gFrogSliceImage = NULL;
+static MemoryImage *gNextBallCircle = NULL;
+static MemoryImage *gWedgeMask[7] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+
 static void RotateXY(float &x, float &y, float cx, float cy, float rad);
+
+static int GetMultiFrogCount()
+{
+    CircleShootApp *app = GetCircleShootApp();
+    if (app == NULL || !app->mMultiFrogMode)
+        return 1;
+    int n = app->mMultiFrogCount;
+    if (n < 1)
+        n = 1;
+    if (n > 4)
+        n = 4;
+    return n;
+}
+
+static MemoryImage *GetWedgeMask(int theCount)
+{
+    if (theCount < 2 || theCount > 4)
+        return NULL;
+    if (gWedgeMask[theCount] != NULL)
+        return gWedgeMask[theCount];
+
+    MemoryImage *mask = new MemoryImage(gSexyAppBase);
+    mask->Create(kFrogSliceSize, kFrogSliceSize);
+    mask->SetImageMode(true, true);
+    ulong *bits = mask->GetBits();
+    float cx = (kFrogSliceSize - 1) * 0.5f;
+    float cy = (kFrogSliceSize - 1) * 0.5f;
+    float half = SEXY_PI / (float)theCount;
+    float facing = SEXY_PI * 0.5f;
+    for (int y = 0; y < kFrogSliceSize; y++)
+    {
+        for (int x = 0; x < kFrogSliceSize; x++)
+        {
+            float ox = (x + 0.5f) - cx;
+            float oy = (y + 0.5f) - cy;
+            float ang = (float)atan2(oy, ox);
+            float diff = ang - facing;
+            while (diff > SEXY_PI)
+                diff -= SEXY_PI * 2.0f;
+            while (diff < -SEXY_PI)
+                diff += SEXY_PI * 2.0f;
+            bits[y * kFrogSliceSize + x] = (fabs(diff) <= half + 0.02f) ? 0xFFFFFFFF : 0;
+        }
+    }
+    mask->BitsChanged();
+    gWedgeMask[theCount] = mask;
+    return mask;
+}
+
+static void ApplyWedgeMask(MemoryImage *theImage, int theCount)
+{
+    MemoryImage *mask = GetWedgeMask(theCount);
+    if (mask == NULL || theImage == NULL)
+        return;
+
+    ulong *ib = theImage->GetBits();
+    ulong *mb = mask->GetBits();
+    int count = kFrogSliceSize * kFrogSliceSize;
+    for (int i = 0; i < count; i++)
+    {
+        if ((mb[i] & 0xFF000000) == 0)
+            ib[i] = 0;
+    }
+    theImage->BitsChanged();
+}
+
+static MemoryImage *GetFrogSliceImage()
+{
+    if (gFrogSliceImage == NULL)
+    {
+        gFrogSliceImage = new MemoryImage(gSexyAppBase);
+        gFrogSliceImage->Create(kFrogSliceSize, kFrogSliceSize);
+        gFrogSliceImage->SetImageMode(true, true);
+    }
+    return gFrogSliceImage;
+}
+
+static MemoryImage *BuildNextBallCircle(int theType)
+{
+    int aColorWidth = Sexy::IMAGE_NEXT_BALL->mWidth / 6;
+    int aColorHeight = Sexy::IMAGE_NEXT_BALL->mHeight;
+    int size = aColorWidth;
+    if (aColorHeight < size)
+        size = aColorHeight;
+    if (size < 2)
+        size = 2;
+
+    if (gNextBallCircle == NULL)
+    {
+        gNextBallCircle = new MemoryImage(gSexyAppBase);
+        gNextBallCircle->Create(size, size);
+        gNextBallCircle->SetImageMode(true, true);
+    }
+    else if (gNextBallCircle->mWidth != size || gNextBallCircle->mHeight != size)
+    {
+        gNextBallCircle->Create(size, size);
+        gNextBallCircle->SetImageMode(true, true);
+    }
+
+    gNextBallCircle->Clear();
+
+    int pivotX = 7;
+    int pivotY = 32;
+    if (pivotX < 0 || pivotX >= aColorWidth)
+        pivotX = aColorWidth / 2;
+    if (pivotY < 0 || pivotY >= aColorHeight)
+        pivotY = aColorHeight / 2;
+
+    Rect aSrc(theType * aColorWidth, 0, aColorWidth, aColorHeight);
+    {
+        Graphics sg(gNextBallCircle);
+        sg.DrawImage(Sexy::IMAGE_NEXT_BALL, size / 2 - pivotX, size / 2 - pivotY, aSrc);
+    }
+
+    ulong *bits = gNextBallCircle->GetBits();
+    float cx = (size - 1) * 0.5f;
+    float cy = (size - 1) * 0.5f;
+    float r = size * 0.5f;
+    float r2 = r * r;
+    for (int y = 0; y < size; y++)
+    {
+        for (int x = 0; x < size; x++)
+        {
+            float ox = (x + 0.5f) - cx;
+            float oy = (y + 0.5f) - cy;
+            if (ox * ox + oy * oy > r2)
+                bits[y * size + x] = 0;
+        }
+    }
+    gNextBallCircle->BitsChanged();
+    gNextBallCircle->SetImageMode(true, true);
+    return gNextBallCircle;
+}
 
 Gun::Gun()
 {
@@ -44,6 +183,9 @@ Gun::Gun()
     mState = GunState_Normal;
     mBullet = NULL;
     mNextBullet = NULL;
+    mExtraBulletCount = 0;
+    for (int i = 0; i < kMaxExtraFrogShots; i++)
+        mExtraBullets[i] = NULL;
     mCachedGunImage = NULL;
     mCachedGunAngle = 0.0f;
     mShowNextBall = true;
@@ -168,107 +310,259 @@ void Gun::SetAngle(float theAngle)
     CalcAngle();
 }
 
+void Gun::DrawFrogLayers(Graphics *g, float theAngle, int theCX, int theCY, bool hasChamber, bool applyWink, bool drawBase, bool drawCover)
+{
+    int aCornerX = theCX - kFrogSliceHalf;
+    int aCornerY = theCY - kFrogSliceHalf;
+
+    if (drawBase)
+    {
+        g->DrawImageRotated(Sexy::IMAGE_SHOOTER_BOTTOM, aCornerX, aCornerY, theAngle, kFrogSliceHalf, kFrogSliceHalf);
+
+        int aOff;
+        switch (mState)
+        {
+        case GunState_Normal:
+            aOff = 51;
+            break;
+        case GunState_Firing:
+            aOff = (mStatePercent * 30.0f) + (1.0f - mStatePercent) * 51.0f;
+            break;
+        case GunState_Reloading:
+            aOff = (mStatePercent * 51.0f) + (1.0f - mStatePercent) * 30.0f;
+            break;
+        }
+
+        int aTongueSomething = 17;
+        if (hasChamber)
+            aTongueSomething = 54 - aOff;
+        else
+            aOff = 37;
+
+        g->DrawImageRotated(Sexy::IMAGE_SHOOTER_TONGUE, aCornerX + 38, aCornerY + aOff, theAngle, 16, aTongueSomething);
+    }
+
+    if (!drawCover)
+        return;
+
+    g->DrawImageRotated(gShooterTop, aCornerX + 31, aCornerY + 12, theAngle, 23, 42);
+
+    if (mBlinkCount == 0 || mBlinkCount > 24)
+        return;
+
+    int blink = 0;
+    if (mBlinkCount > 4 && mBlinkCount < 20)
+        blink = 1;
+
+    int aWidth = Sexy::IMAGE_EYE_BLINK->mWidth;
+    int aHeight = Sexy::IMAGE_EYE_BLINK->mHeight / 2;
+    if (applyWink && mWink)
+        mWidth /= 2;
+
+    Rect anEyeRect(0, blink * aHeight, aWidth, aHeight);
+    g->DrawImageRotatedF(Sexy::IMAGE_EYE_BLINK, aCornerX + 25, aCornerY + 42, theAngle, 29, 12, &anEyeRect);
+}
+
 void Gun::Draw(Graphics *g)
 {
     CircleShootApp *app = GetCircleShootApp();
-    if (app != NULL && app->mBaseMinimumMode)
+    int aFrogCount = GetMultiFrogCount();
+    bool aUseWedge = aFrogCount > 1;
+
+    if (!aUseWedge)
     {
-        // Frog body: distinct green (not ball green 0x00FF00).
-        g->SetColor(Color(0x228B22));
-        Sexy::FillCircle(g, mCenterX, mCenterY, 28);
+        if (app != NULL && app->mBaseMinimumMode)
+        {
+            g->SetColor(Color(0x228B22));
+            Sexy::FillCircle(g, mCenterX, mCenterY, 28);
+
+            if (mBullet != NULL)
+                mBullet->Draw(g);
+
+            if (mShowNextBall && !app->mNoSwapMode && mNextBullet != NULL && mState != GunState_Reloading)
+            {
+                int aColorWidth = Sexy::IMAGE_NEXT_BALL->mWidth / 6;
+                int aColorHeight = Sexy::IMAGE_NEXT_BALL->mHeight;
+                int nextR = aColorWidth < aColorHeight ? aColorWidth / 2 : aColorHeight / 2;
+                if (nextR < 1)
+                    nextR = 1;
+
+                float nx = (float)(mCenterX + 47 + aColorWidth / 2 - kFrogSliceHalf);
+                float ny = (float)(mCenterY + 22 + aColorHeight / 2 - kFrogSliceHalf);
+                RotateXY(nx, ny, (float)mCenterX, (float)mCenterY, mAngle);
+
+                uint c = Sexy::gBallColors[mNextBullet->GetType()];
+                g->SetColor(Color(c));
+                Sexy::FillCircle(g, (int)(nx + 0.5f), (int)(ny + 0.5f), nextR);
+            }
+            return;
+        }
+
+        int aCornerX = mCenterX - kFrogSliceHalf;
+        int aCornerY = mCenterY - kFrogSliceHalf;
+
+        g->DrawImageRotated(Sexy::IMAGE_SHOOTER_BOTTOM, aCornerX, aCornerY, mAngle, kFrogSliceHalf, kFrogSliceHalf);
+
+        int aOff;
+        switch (mState)
+        {
+        case GunState_Normal:
+            aOff = 51;
+            break;
+        case GunState_Firing:
+            aOff = (mStatePercent * 30.0f) + (1.0f - mStatePercent) * 51.0f;
+            break;
+        case GunState_Reloading:
+            aOff = (mStatePercent * 51.0f) + (1.0f - mStatePercent) * 30.0f;
+            break;
+        }
+
+        int aTongueSomething = 17;
+        if (mBullet != NULL)
+            aTongueSomething = 54 - aOff;
+        else
+            aOff = 37;
+
+        g->DrawImageRotated(Sexy::IMAGE_SHOOTER_TONGUE, aCornerX + 38, aCornerY + aOff, mAngle, 16, aTongueSomething);
 
         if (mBullet != NULL)
             mBullet->Draw(g);
 
-        if (mShowNextBall && !app->mNoSwapMode && mNextBullet != NULL && mState != GunState_Reloading)
-        {
-            int aColorWidth = Sexy::IMAGE_NEXT_BALL->mWidth / 6;
-            int aColorHeight = Sexy::IMAGE_NEXT_BALL->mHeight;
-            int nextR = aColorWidth < aColorHeight ? aColorWidth / 2 : aColorHeight / 2;
-            if (nextR < 1)
-                nextR = 1;
-
-            float nx = (float)(mCenterX + 47 + aColorWidth / 2 - 54);
-            float ny = (float)(mCenterY + 22 + aColorHeight / 2 - 54);
-            RotateXY(nx, ny, (float)mCenterX, (float)mCenterY, mAngle);
-
-            uint c = Sexy::gBallColors[mNextBullet->GetType()];
-            g->SetColor(Color(c));
-            Sexy::FillCircle(g, (int)(nx + 0.5f), (int)(ny + 0.5f), nextR);
-        }
-        return;
-    }
-
-    int aCornerX = mCenterX - 54;
-    int aCornerY = mCenterY - 54;
-
-    g->DrawImageRotated(Sexy::IMAGE_SHOOTER_BOTTOM, aCornerX, aCornerY, mAngle, 54, 54);
-
-    int aOff;
-    switch (mState)
-    {
-    case GunState_Normal:
-        aOff = 51;
-        break;
-    case GunState_Firing:
-        aOff = (mStatePercent * 30.0f) + (1.0f - mStatePercent) * 51.0f;
-        break;
-    case GunState_Reloading:
-        aOff = (mStatePercent * 51.0f) + (1.0f - mStatePercent) * 30.0f;
-        break;
-    }
-
-    int aTongueSomething = 17;
-
-    if (mBullet != NULL)
-    {
-        aTongueSomething = 54 - aOff;
-    }
-    else
-    {
-        aOff = 37;
-    }
-
-    g->DrawImageRotated(Sexy::IMAGE_SHOOTER_TONGUE, aCornerX + 38, aCornerY + aOff, mAngle, 16, aTongueSomething);
-
-    if (mBullet != NULL)
-        mBullet->Draw(g);
-
-    if (mShowNextBall && !GetCircleShootApp()->mNoSwapMode)
-    {
-        if (mNextBullet != NULL && mState != GunState_Reloading)
+        if (mShowNextBall && app != NULL && !app->mNoSwapMode &&
+            mNextBullet != NULL && mState != GunState_Reloading)
         {
             int aColorWidth = Sexy::IMAGE_NEXT_BALL->mWidth / 6;
             int aColorHeight = Sexy::IMAGE_NEXT_BALL->mHeight;
             Rect aColorRect(mNextBullet->GetType() * aColorWidth, 0, aColorWidth, aColorHeight);
-
             g->DrawImageRotatedF(Sexy::IMAGE_NEXT_BALL, aCornerX + 47, aCornerY + 22, mAngle, 7, 32, &aColorRect);
+        }
+
+        g->DrawImageRotated(gShooterTop, aCornerX + 31, aCornerY + 12, mAngle, 23, 42);
+
+        if (mBlinkCount == 0 || mBlinkCount > 24)
+            return;
+
+        int blink = 0;
+        if (mBlinkCount > 4 && mBlinkCount < 20)
+            blink = 1;
+
+        int aWidth = Sexy::IMAGE_EYE_BLINK->mWidth;
+        int aHeight = Sexy::IMAGE_EYE_BLINK->mHeight / 2;
+        if (mWink)
+            mWidth /= 2;
+
+        Rect anEyeRect(0, blink * aHeight, aWidth, aHeight);
+        g->DrawImageRotatedF(Sexy::IMAGE_EYE_BLINK, aCornerX + 25, aCornerY + 42, mAngle, 29, 12, &anEyeRect);
+        return;
+    }
+
+    for (int aPass = 0; aPass < aFrogCount; aPass++)
+    {
+        // Draw extras first; the cursor-following frog (index 0) is last / on top.
+        int aFrog = (aPass + 1) % aFrogCount;
+        float aDelta = aFrog * ((SEXY_PI * 2.0f) / (float)aFrogCount);
+        float aAngle = mAngle + aDelta;
+
+        Bullet *aChamber = mBullet;
+        bool aRestoreChamber = false;
+        float aSavedX = 0.0f;
+        float aSavedY = 0.0f;
+        float aSavedRot = 0.0f;
+
+        if (aFrog == 0)
+        {
+            aChamber = mBullet;
+        }
+        else if (aFrog - 1 < mExtraBulletCount && mExtraBullets[aFrog - 1] != NULL)
+        {
+            aChamber = mExtraBullets[aFrog - 1];
+        }
+        else if (mBullet != NULL)
+        {
+            aRestoreChamber = true;
+            aSavedX = mBullet->GetX();
+            aSavedY = mBullet->GetY();
+            aSavedRot = mBullet->GetRotation();
+            float aPosX = aSavedX;
+            float aPosY = aSavedY;
+            RotateXY(aPosX, aPosY, (float)mCenterX, (float)mCenterY, aDelta);
+            mBullet->SetPos(aPosX, aPosY);
+            mBullet->SetRotation(aSavedRot + aDelta);
+            aChamber = mBullet;
+        }
+        else
+        {
+            aChamber = NULL;
+        }
+
+        MemoryImage *slice = GetFrogSliceImage();
+        slice->Clear();
+        {
+            Graphics sg(slice);
+            if (app != NULL && app->mBaseMinimumMode)
+            {
+                sg.SetColor(Color(0x228B22));
+                Sexy::FillCircle(&sg, kFrogSliceHalf, kFrogSliceHalf, 28);
+            }
+            else
+            {
+                DrawFrogLayers(&sg, 0.0f, kFrogSliceHalf, kFrogSliceHalf, aChamber != NULL, false, true, false);
+            }
+        }
+        ApplyWedgeMask(slice, aFrogCount);
+        g->DrawImageRotated(slice, mCenterX - kFrogSliceHalf, mCenterY - kFrogSliceHalf,
+                            aAngle, kFrogSliceHalf, kFrogSliceHalf);
+
+        if (aChamber != NULL)
+            aChamber->Draw(g);
+
+        if (app == NULL || !app->mBaseMinimumMode)
+        {
+            slice->Clear();
+            {
+                Graphics sg(slice);
+                DrawFrogLayers(&sg, 0.0f, kFrogSliceHalf, kFrogSliceHalf, aChamber != NULL, aFrog == 0, false, true);
+            }
+            ApplyWedgeMask(slice, aFrogCount);
+            g->DrawImageRotated(slice, mCenterX - kFrogSliceHalf, mCenterY - kFrogSliceHalf,
+                                aAngle, kFrogSliceHalf, kFrogSliceHalf);
+        }
+
+        if (aRestoreChamber)
+        {
+            mBullet->SetPos(aSavedX, aSavedY);
+            mBullet->SetRotation(aSavedRot);
         }
     }
 
-    g->DrawImageRotated(gShooterTop, aCornerX + 31, aCornerY + 12, mAngle, 23, 42);
-
-    if (mBlinkCount == 0)
-        return;
-
-    int blink = 0;
-
-    if (mBlinkCount > 4 && mBlinkCount < 20)
+    if (mShowNextBall && app != NULL && !app->mNoSwapMode &&
+        mNextBullet != NULL && mState != GunState_Reloading)
     {
-        blink = 1;
-    }
-    else if (mBlinkCount > 24)
-    {
-        return;
-    }
+        int aColorWidth = Sexy::IMAGE_NEXT_BALL->mWidth / 6;
+        int aColorHeight = Sexy::IMAGE_NEXT_BALL->mHeight;
 
-    int aWidth = Sexy::IMAGE_EYE_BLINK->mWidth;
-    int aHeight = Sexy::IMAGE_EYE_BLINK->mHeight / 2;
-    if (mWink)
-        mWidth /= 2;
+        if (app->mBaseMinimumMode)
+        {
+            int nextR = aColorWidth < aColorHeight ? aColorWidth / 2 : aColorHeight / 2;
+            if (nextR < 1)
+                nextR = 1;
 
-    Rect anEyeRect(0, blink * aHeight, aWidth, aHeight);
-    g->DrawImageRotatedF(Sexy::IMAGE_EYE_BLINK, aCornerX + 25, aCornerY + 42, mAngle, 29, 12, &anEyeRect);
+            uint c = Sexy::gBallColors[mNextBullet->GetType()];
+            g->SetColor(Color(c));
+            Sexy::FillCircle(g, mCenterX, mCenterY, nextR);
+        }
+        else
+        {
+            MemoryImage *aCircle = BuildNextBallCircle(mNextBullet->GetType());
+            int aHalf = aCircle->mWidth / 2;
+            g->DrawImageRotatedF(aCircle,
+                                 (float)(mCenterX - aHalf),
+                                 (float)(mCenterY - aHalf),
+                                 0.0f,
+                                 (float)aHalf,
+                                 (float)aHalf);
+        }
+    }
 }
 
 void Gun::DrawShadow(Graphics *g)
@@ -284,6 +578,7 @@ void Gun::ForceFinishShot()
     mPendingFired.push_back(mBullet);
     mBullet = mNextBullet;
     mNextBullet = NULL;
+    ReleaseExtraBullets();
     mState = GunState_Normal;
     mStatePercent = 1.0f;
 }
@@ -338,6 +633,14 @@ bool Gun::StartFire(bool recoil)
         -40.0f * vx + aBullet->GetX(),
         -40.0f * vy + aBullet->GetY());
 
+    ClearExtraBullets();
+    int aFrogCount = GetMultiFrogCount();
+    for (int i = 1; i < aFrogCount && i - 1 < kMaxExtraFrogShots; i++)
+    {
+        float aDelta = i * ((SEXY_PI * 2.0f) / (float)aFrogCount);
+        mExtraBullets[mExtraBulletCount++] = CreateRotatedBullet(aBullet, aDelta);
+    }
+
     mRecoilX1 = mCenterX;
     mRecoilY1 = mCenterY;
     mRecoilX2 = mCenterX + vx * -6.0f;
@@ -372,6 +675,8 @@ Bullet *Gun::GetFiredBullet()
         Bullet *aBullet = mBullet;
         mBullet = NULL;
         mState = GunState_Normal;
+
+        ReleaseExtraBullets();
 
         return aBullet;
     }
@@ -432,7 +737,14 @@ void Gun::Update()
         mStatePercent += 0.15f;
 
         if (mStatePercent > 0.6f)
+        {
             mBullet->Update();
+            for (int i = 0; i < mExtraBulletCount; i++)
+            {
+                if (mExtraBullets[i] != NULL)
+                    mExtraBullets[i]->Update();
+            }
+        }
     }
     else
     {
@@ -499,6 +811,8 @@ void Gun::EmptyBullets()
         delete mBullet;
         mBullet = NULL;
     }
+
+    ClearExtraBullets();
 }
 
 void Gun::CreateCachedGunImage()
@@ -521,9 +835,17 @@ void Gun::CreateCachedGunImage()
     float anAngle = mAngle;
     Bullet *aNextBullet = mNextBullet;
     Bullet *aBullet = mBullet;
+    Bullet *aExtraBullets[kMaxExtraFrogShots];
+    int aExtraCount = mExtraBulletCount;
+    for (int i = 0; i < kMaxExtraFrogShots; i++)
+    {
+        aExtraBullets[i] = mExtraBullets[i];
+        mExtraBullets[i] = NULL;
+    }
 
     mNextBullet = NULL;
     mBullet = NULL;
+    mExtraBulletCount = 0;
     mBlinkCount = 0;
     mCenterX = mCachedGunImage->mWidth / 2;
     mCenterY = mCachedGunImage->mHeight / 2;
@@ -554,6 +876,9 @@ void Gun::CreateCachedGunImage()
     mBlinkCount = aBlinkCount;
     mNextBullet = aNextBullet;
     mBullet = aBullet;
+    mExtraBulletCount = aExtraCount;
+    for (int i = 0; i < kMaxExtraFrogShots; i++)
+        mExtraBullets[i] = aExtraBullets[i];
 }
 
 void Gun::DrawCachedGunImage(Graphics *g, float theZoom)
@@ -618,6 +943,32 @@ void Gun::DoBlink(bool wink)
     mBlinkCount = 25;
 }
 
+void Gun::ClearExtraBullets()
+{
+    for (int i = 0; i < kMaxExtraFrogShots; i++)
+    {
+        if (mExtraBullets[i] != NULL)
+        {
+            delete mExtraBullets[i];
+            mExtraBullets[i] = NULL;
+        }
+    }
+    mExtraBulletCount = 0;
+}
+
+void Gun::ReleaseExtraBullets()
+{
+    for (int i = 0; i < mExtraBulletCount; i++)
+    {
+        if (mExtraBullets[i] != NULL)
+        {
+            mPendingFired.push_back(mExtraBullets[i]);
+            mExtraBullets[i] = NULL;
+        }
+    }
+    mExtraBulletCount = 0;
+}
+
 static void RotateXY(float &x, float &y, float cx, float cy, float rad)
 {
     float ox = x - cx;
@@ -625,6 +976,26 @@ static void RotateXY(float &x, float &y, float cx, float cy, float rad)
 
     x = cx + ox * cosf(rad) + oy * sinf(rad);
     y = cy + oy * cosf(rad) - ox * sinf(rad);
+}
+
+Bullet *Gun::CreateRotatedBullet(Bullet *theSrc, float theAngleDelta)
+{
+    Bullet *aClone = new Bullet();
+    aClone->SetType(theSrc->GetType());
+    aClone->SetPowerType(theSrc->GetPowerType(), false);
+
+    float aPosX = theSrc->GetX();
+    float aPosY = theSrc->GetY();
+    RotateXY(aPosX, aPosY, (float)mCenterX, (float)mCenterY, theAngleDelta);
+    aClone->SetPos(aPosX, aPosY);
+    aClone->SetRotation(theSrc->GetRotation() + theAngleDelta);
+
+    float vx = theSrc->GetVelX();
+    float vy = theSrc->GetVelY();
+    float c = cosf(theAngleDelta);
+    float s = sinf(theAngleDelta);
+    aClone->SetVelocity(vx * c + vy * s, vy * c - vx * s);
+    return aClone;
 }
 
 void Gun::CalcAngle()

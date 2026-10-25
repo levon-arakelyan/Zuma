@@ -49,6 +49,7 @@ namespace Sexy
             Mode_AutoAdvance,
             Mode_KillerBall,
             Mode_ShootSpeed,
+            Mode_MultiFrog,
             Mode_Count
         };
     }
@@ -125,6 +126,7 @@ namespace Sexy
         bool IsAutoAdvanceSelected() const;
         bool IsKillerBallSelected() const;
         bool IsShootSpeedSelected() const;
+        bool IsMultiFrogSelected() const;
 
         void GetBannedColors(bool outBanned[MAX_BALL_COLORS]) const;
         void SetBannedColors(const bool banned[MAX_BALL_COLORS]);
@@ -182,6 +184,10 @@ namespace Sexy
         void SetShootSpeedInstant(bool instant);
         void SetShootSpeedSelected(bool selected);
 
+        int GetMultiFrogCount() const;
+        void SetMultiFrogCount(int theCount);
+        void SetMultiFrogSelected(bool selected);
+
         void PrepareClose();
 
         // Named aliases kept for CircleShootApp / Finish* helpers
@@ -201,6 +207,7 @@ namespace Sexy
         Checkbox *mAutoAdvanceCheckbox;
         Checkbox *mKillerBallCheckbox;
         Checkbox *mShootSpeedCheckbox;
+        Checkbox *mMultiFrogCheckbox;
 
         ModeWidgetSlot mModeSlots[ModesCatalog::Mode_Count];
 
@@ -227,6 +234,7 @@ namespace Sexy
         float mPendingKillerBallFlightSec;
         float mPendingShootSpeedMultiplier;
         bool mPendingShootSpeedInstant;
+        int mPendingMultiFrogCount;
         bool mPendingColorsBanRandom;
         int mPendingColorsBanRandomCount;
         int mHoveredHitId;

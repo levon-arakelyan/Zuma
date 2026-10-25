@@ -940,20 +940,37 @@ void Board::UpdateBallColorMap(Ball *theBall, bool added)
     }
 }
 
-void Board::UpdateGuide()
+static const int kMaxExtraGuides = 5;
+static IntPoint gExtraGuides[kMaxExtraGuides][4];
+static int gExtraGuideCount = 0;
+
+static int GetBoardMultiFrogCount()
 {
-    float anAngle = mGun->GetAngle() - (SEXY_PI / 2);
+    CircleShootApp *app = GetCircleShootApp();
+    if (app == NULL || !app->mMultiFrogMode)
+        return 1;
+    int n = app->mMultiFrogCount;
+    if (n < 1)
+        n = 1;
+    if (n > 4)
+        n = 4;
+    return n;
+}
+
+static Ball *ComputeAccuracyGuide(Gun *theGun, float theGunAngle, CurveMgr **theCurves, int theNumCurves,
+                                  IntPoint *theGuide, SexyVector3 *theEnd)
+{
+    float anAngle = theGunAngle - (SEXY_PI / 2);
     float dx = sinf(anAngle);
     float dy = cosf(anAngle);
     float dx2 = dx;
     float dy2 = dy;
     float dx3 = dx * 16.0f;
     float dy3 = dy * 16.0f;
-    // int dist = 50; this was probably there ???
 
     const SexyVector3 aCenter(
-        (float)mGun->GetCenterX() + dy * 50.0f,
-        (float)mGun->GetCenterY() + dx * -50.0f,
+        (float)theGun->GetCenterX() + dy * 50.0f,
+        (float)theGun->GetCenterY() + dx * -50.0f,
         0.0f);
 
     SexyVector3 g1(aCenter.x - dx3, aCenter.y - dy3, 0.0f);
@@ -961,30 +978,66 @@ void Board::UpdateGuide()
     SexyVector3 v1(cosf(anAngle), -sinf(anAngle), 0.0f);
     float t = 10000000.0f;
 
-    Sexy::Ball *aBall = NULL;
-
-    for (int i = 0; i < mNumCurves; i++)
+    Ball *aBall = NULL;
+    for (int i = 0; i < theNumCurves; i++)
     {
-        Sexy::Ball *anIntersectBall = mCurveMgr[i]->CheckBallIntersection(g1, v1, t);
+        Ball *anIntersectBall = theCurves[i]->CheckBallIntersection(g1, v1, t);
         if (anIntersectBall)
             aBall = anIntersectBall;
     }
 
-    for (int i = 0; i < mNumCurves; i++)
+    for (int i = 0; i < theNumCurves; i++)
     {
-        Sexy::Ball *anIntersectBall = mCurveMgr[i]->CheckBallIntersection(g2, v1, t);
+        Ball *anIntersectBall = theCurves[i]->CheckBallIntersection(g2, v1, t);
         if (anIntersectBall)
             aBall = anIntersectBall;
     }
 
     if (aBall == NULL)
-    {
         t = 1000.0f / v1.Magnitude();
-    }
-
-    mGuideBall = aBall;
 
     SexyVector3 aGuide = aCenter + v1 * t;
+    if (theEnd != NULL)
+        *theEnd = aGuide;
+
+    if (theGuide != NULL)
+    {
+        theGuide[0].mX = g1.x + dx3 * 0.5f;
+        theGuide[0].mY = g1.y + dy3 * 0.5f;
+        theGuide[1].mX = g2.x + dx3 * -0.5f;
+        theGuide[1].mY = g2.y + dy3 * -0.5f;
+        theGuide[2].mX = aGuide.x + dx2;
+        theGuide[2].mY = aGuide.y + dy2;
+        theGuide[3].mX = aGuide.x - dx2;
+        theGuide[3].mY = aGuide.y - dy2;
+    }
+
+    return aBall;
+}
+
+static void DrawAccuracyGuide(Graphics *g, IntPoint *theGuide, bool baseMinimum)
+{
+    if (baseMinimum)
+    {
+        int x0 = (theGuide[0].mX + theGuide[1].mX) / 2;
+        int y0 = (theGuide[0].mY + theGuide[1].mY) / 2;
+        int x1 = (theGuide[2].mX + theGuide[3].mX) / 2;
+        int y1 = (theGuide[2].mY + theGuide[3].mY) / 2;
+        g->DrawLineAA(x0, y0, x1, y1);
+    }
+    else
+    {
+        g->PolyFill(theGuide, 4, false);
+    }
+}
+
+void Board::UpdateGuide()
+{
+    SexyVector3 aGuide;
+    IntPoint aTmpGuide[4];
+    Ball *aBall = ComputeAccuracyGuide(mGun, mGun->GetAngle(), mCurveMgr, mNumCurves, aTmpGuide, &aGuide);
+
+    mGuideBall = aBall;
 
     if (!mRecalcGuide && mShowGuide && (mGuideCenter - aGuide).Magnitude() < 20.0f)
         return;
@@ -992,15 +1045,20 @@ void Board::UpdateGuide()
     mGuideCenter = aGuide;
     mShowGuide = true;
     mRecalcGuide = false;
+    mGuide[0] = aTmpGuide[0];
+    mGuide[1] = aTmpGuide[1];
+    mGuide[2] = aTmpGuide[2];
+    mGuide[3] = aTmpGuide[3];
 
-    mGuide[0].mX = g1.x + dx3 * 0.5f;
-    mGuide[0].mY = g1.y + dy3 * 0.5f;
-    mGuide[1].mX = g2.x + dx3 * -0.5f;
-    mGuide[1].mY = g2.y + dy3 * -0.5f;
-    mGuide[2].mX = aGuide.x + dx2;
-    mGuide[2].mY = aGuide.y + dy2;
-    mGuide[3].mX = aGuide.x - dx2;
-    mGuide[3].mY = aGuide.y - dy2;
+    gExtraGuideCount = 0;
+    int aFrogCount = GetBoardMultiFrogCount();
+    for (int i = 1; i < aFrogCount && gExtraGuideCount < kMaxExtraGuides; i++)
+    {
+        float aDelta = i * ((SEXY_PI * 2.0f) / (float)aFrogCount);
+        ComputeAccuracyGuide(mGun, mGun->GetAngle() + aDelta, mCurveMgr, mNumCurves,
+                             gExtraGuides[gExtraGuideCount], NULL);
+        gExtraGuideCount++;
+    }
 }
 
 int GetTreasurePitch(int x)
@@ -1544,19 +1602,9 @@ void Board::DrawPlaying(Graphics *g)
         }
 
         g->SetColor(Color(0, 255, 255, anAlpha));
-        if (mApp->mBaseMinimumMode)
-        {
-            // Single aim line instead of the filled triangle wedge.
-            int x0 = (mGuide[0].mX + mGuide[1].mX) / 2;
-            int y0 = (mGuide[0].mY + mGuide[1].mY) / 2;
-            int x1 = (mGuide[2].mX + mGuide[3].mX) / 2;
-            int y1 = (mGuide[2].mY + mGuide[3].mY) / 2;
-            g->DrawLineAA(x0, y0, x1, y1);
-        }
-        else
-        {
-            g->PolyFill(mGuide, 4, false);
-        }
+        DrawAccuracyGuide(g, mGuide, mApp->mBaseMinimumMode);
+        for (int i = 0; i < gExtraGuideCount; i++)
+            DrawAccuracyGuide(g, gExtraGuides[i], mApp->mBaseMinimumMode);
     }
 
     DrawBullets(g);
