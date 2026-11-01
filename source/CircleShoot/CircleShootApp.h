@@ -98,6 +98,7 @@ namespace Sexy
         bool mShootSpeedInstant;     // mutually exclusive with the multiplier
         bool mMultiFrogMode;         // extra frogs equally spaced around the gun
         int mMultiFrogCount;         // 1-4 frogs when multi-frog is on
+        bool mNonStopMode;           // hole-side chain segments keep rolling across gaps
 
         bool IsColorBanned(int theColor) const;
         void RollRandomBannedColors(int theNumColors = -1);

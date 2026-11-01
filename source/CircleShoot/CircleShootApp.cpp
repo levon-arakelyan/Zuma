@@ -132,6 +132,7 @@ CircleShootApp::CircleShootApp()
     mShootSpeedInstant = false;
     mMultiFrogMode = false;
     mMultiFrogCount = 2;
+    mNonStopMode = false;
 }
 
 CircleShootApp::~CircleShootApp()
@@ -1318,6 +1319,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
     bool killerBall = false;
     bool shootSpeed = false;
     bool multiFrog = false;
+    bool nonStop = false;
     bool bannedColors[MAX_BALL_COLORS];
     bool disabledPowerUps[PowerType_Max];
     float chainSpeed = 1.0f;
@@ -1367,6 +1369,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
         killerBall = dialog->IsKillerBallSelected();
         shootSpeed = dialog->IsShootSpeedSelected();
         multiFrog = dialog->IsMultiFrogSelected();
+        nonStop = dialog->IsNonStopSelected();
         chainSpeed = dialog->GetChainSpeedMultiplier();
         movingHoleSpeed = dialog->GetMovingHoleSpeed();
         chainBonusThreshold = dialog->GetChainBonusThreshold();
@@ -1458,6 +1461,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
             mMultiFrogCount = 1;
         if (mMultiFrogCount > 4)
             mMultiFrogCount = 4;
+        mNonStopMode = nonStop;
     }
 }
 

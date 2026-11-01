@@ -1887,7 +1887,7 @@ void CurveMgr::AdvanceBalls()
         aMaxSpeed /= 4.0f;
     }
 
-    if (mFirstChainEnd >= mDangerPoint - mCurveDesc->mSlowDistance)
+    if (!mApp->mNonStopMode && mFirstChainEnd >= mDangerPoint - mCurveDesc->mSlowDistance)
     {
         if (mFirstChainEnd < mDangerPoint)
         {
@@ -1937,7 +1937,7 @@ void CurveMgr::AdvanceBalls()
 
     Ball *aBall = mBallList.front();
     float aNextWayPoint = aBall->GetWayPoint();
-    if (!mFirstBallMovedBackwards && !mStopTime)
+    if (!mFirstBallMovedBackwards && (!mStopTime || mApp->mNonStopMode))
     {
         mWayPointMgr->SetWayPoint(aBall, aNextWayPoint + mAdvanceSpeed);
     }
@@ -1958,7 +1958,8 @@ void CurveMgr::AdvanceBalls()
         aNextWayPoint = aNextBall->GetWayPoint();
         float aWayPoint = aBall->GetWayPoint();
 
-        if (aWayPoint > aNextWayPoint - aBall->GetRadius() - aNextBall->GetRadius())
+        if (aWayPoint > aNextWayPoint - aBall->GetRadius() - aNextBall->GetRadius() &&
+            !(mApp->mNonStopMode && aBall->GetClearCount() > 0 && aNextBall->GetClearCount() <= 0))
         {
             mWayPointMgr->SetWayPoint(aNextBall, aWayPoint + aBall->GetRadius() + aNextBall->GetRadius());
 
@@ -1969,6 +1970,37 @@ void CurveMgr::AdvanceBalls()
             }
 
             aBall->SetNeedCheckCollision(false);
+        }
+        else if (mApp->mNonStopMode)
+        {
+            float aSep = aNextWayPoint - aWayPoint - (float)aBall->GetRadius() - (float)aNextBall->GetRadius();
+            bool aClearGap = aBall->GetClearCount() > 0 && aNextBall->GetClearCount() <= 0;
+            bool aHoleGroup = false;
+            if (mBackwardCount > 0)
+            {
+                Ball *aWalk = aNextBall;
+                for (;;)
+                {
+                    Ball *aWalkNext = aWalk->GetNextBall(false);
+                    if (aWalkNext == NULL)
+                        break;
+                    float aWalkSep = aWalkNext->GetWayPoint() - aWalk->GetWayPoint() -
+                                     (float)aWalk->GetRadius() - (float)aWalkNext->GetRadius();
+                    if (aWalkSep > 2.0f)
+                        break;
+                    aWalk = aWalkNext;
+                }
+                aHoleGroup = (aWalk == mBallList.back());
+            }
+            if (aWayPoint > 50.0f && aNextWayPoint > 50.0f &&
+                (aClearGap || aSep > 2.0f) &&
+                !aHoleGroup &&
+                aNextBall->GetSuckCount() <= 0 &&
+                aNextBall->GetBackwardsCount() <= 0 &&
+                aNextBall->GetClearCount() <= 0)
+            {
+                mWayPointMgr->SetWayPoint(aNextBall, aNextWayPoint + mAdvanceSpeed);
+            }
         }
 
         if (aFirstChainEnd == NULL)
@@ -2080,7 +2112,7 @@ void CurveMgr::AdvanceBackwardBalls()
     if (aCollided)
     {
         mFirstBallMovedBackwards = true;
-        if (mStopTime < 20)
+        if (!mApp->mNonStopMode && mStopTime < 20)
         {
             mStopTime = 20;
         }
@@ -2201,7 +2233,7 @@ void CurveMgr::UpdateSets()
                 aNextBall->SetComboCount(aBall->GetComboCount() + 1, aBall->GetComboScore());
             }
 
-            if (anItr == mBallList.begin())
+            if (anItr == mBallList.begin() && !mApp->mNonStopMode)
             {
                 mAdvanceSpeed = 0.0f;
                 if (mStopTime < 40)
@@ -2685,7 +2717,7 @@ Bullet *CurveMgr::LaunchKillerBall(float theFlightSec, float theFrogX, float the
     if (aPrevBall != NULL)
         aPrevBall->SetCollidesWithNext(false);
 
-    if (wasFront)
+    if (wasFront && !mApp->mNonStopMode)
     {
         mAdvanceSpeed = 0.0f;
         if (mStopTime < 40)

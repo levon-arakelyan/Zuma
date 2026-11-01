@@ -50,6 +50,7 @@ namespace Sexy
             Mode_KillerBall,
             Mode_ShootSpeed,
             Mode_MultiFrog,
+            Mode_NonStop,
             Mode_Count
         };
     }
@@ -127,6 +128,7 @@ namespace Sexy
         bool IsKillerBallSelected() const;
         bool IsShootSpeedSelected() const;
         bool IsMultiFrogSelected() const;
+        bool IsNonStopSelected() const;
 
         void GetBannedColors(bool outBanned[MAX_BALL_COLORS]) const;
         void SetBannedColors(const bool banned[MAX_BALL_COLORS]);
@@ -187,6 +189,7 @@ namespace Sexy
         int GetMultiFrogCount() const;
         void SetMultiFrogCount(int theCount);
         void SetMultiFrogSelected(bool selected);
+        void SetNonStopSelected(bool selected);
 
         void PrepareClose();
 
@@ -208,6 +211,7 @@ namespace Sexy
         Checkbox *mKillerBallCheckbox;
         Checkbox *mShootSpeedCheckbox;
         Checkbox *mMultiFrogCheckbox;
+        Checkbox *mNonStopCheckbox;
 
         ModeWidgetSlot mModeSlots[ModesCatalog::Mode_Count];
 
