@@ -174,6 +174,10 @@ namespace Sexy
 
 		int GetDifficulty(int theLevel);
 		int GetLevelNumByStage(int theStage);
+
+		// A graphics board with the same curve count, other than the one whose
+		// first path is theAvoidPath. False when nothing else matches.
+		bool PickRandomGraphics(int theCurveCount, const std::string &theAvoidPath, LevelDesc &out);
 	};
 
 }

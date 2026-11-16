@@ -64,6 +64,27 @@ LevelDesc::LevelDesc()
     mStage = 0;
 }
 
+bool LevelParser::PickRandomGraphics(int theCurveCount, const std::string &theAvoidPath, LevelDesc &out)
+{
+    std::vector<LevelDesc *> matches;
+
+    for (LevelDescMap::iterator anItr = mGraphicsMap.begin(); anItr != mGraphicsMap.end(); ++anItr)
+    {
+        LevelDesc &gfx = anItr->second;
+        if (gfx.GetNumCurves() != theCurveCount)
+            continue;
+        if (!theAvoidPath.empty() && gfx.mCurveDesc[0].mPath == theAvoidPath)
+            continue;
+        matches.push_back(&gfx);
+    }
+
+    if (matches.empty())
+        return false;
+
+    out = *matches[Sexy::AppRand() % matches.size()];
+    return true;
+}
+
 int LevelDesc::GetNumCurves()
 {
     int nCurves = 0;

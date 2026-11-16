@@ -51,6 +51,7 @@ namespace Sexy
             Mode_ShootSpeed,
             Mode_MultiFrog,
             Mode_NonStop,
+            Mode_LevelSwap,
             Mode_Count
         };
     }
@@ -129,6 +130,11 @@ namespace Sexy
         bool IsShootSpeedSelected() const;
         bool IsMultiFrogSelected() const;
         bool IsNonStopSelected() const;
+        bool IsLevelSwapSelected() const;
+
+        int GetLevelSwapIntervalSec() const;
+        void SetLevelSwapIntervalSec(int sec);
+        void SetLevelSwapSelected(bool selected);
 
         void GetBannedColors(bool outBanned[MAX_BALL_COLORS]) const;
         void SetBannedColors(const bool banned[MAX_BALL_COLORS]);
@@ -212,6 +218,7 @@ namespace Sexy
         Checkbox *mShootSpeedCheckbox;
         Checkbox *mMultiFrogCheckbox;
         Checkbox *mNonStopCheckbox;
+        Checkbox *mLevelSwapCheckbox;
 
         ModeWidgetSlot mModeSlots[ModesCatalog::Mode_Count];
 
@@ -239,6 +246,7 @@ namespace Sexy
         float mPendingShootSpeedMultiplier;
         bool mPendingShootSpeedInstant;
         int mPendingMultiFrogCount;
+        int mPendingLevelSwapIntervalSec;
         bool mPendingColorsBanRandom;
         int mPendingColorsBanRandomCount;
         int mHoveredHitId;

@@ -815,29 +815,44 @@ void SpriteMgr::DrawHoleWithFlash(Graphics *g, int theHoleNum)
     }
 }
 
-void SpriteMgr::DrawBackground(Graphics *g)
+void SpriteMgr::DrawBackdrop(Graphics *g)
 {
     if (GetCircleShootApp()->mBaseMinimumMode)
     {
         g->SetColor(Color(0));
         g->FillRect(0, 0, 640, 480);
-        // Path ends still need to be visible (gray circles via DrawHole).
-        if (!GetCircleShootApp()->mMovingHoleMode)
-            DrawHoles(g);
         return;
     }
 
     if (mInSpace)
-    {
         DrawSpace(g);
-    }
     else
-    {
         g->DrawImage(mBackgroundImage, 0, 0);
-    }
+}
+
+bool SpriteMgr::GetHoleCenter(int theCurveNum, int &x, int &y, float &rot, int &pri) const
+{
+    if (theCurveNum < 0 || theCurveNum >= 3)
+        return false;
+
+    int idx = mHoleMappings[theCurveNum];
+    if (idx < 0 || idx >= mNumHoles || Sexy::IMAGE_HOLE == NULL)
+        return false;
+
+    x = mHoleInfo[idx].mx + Sexy::IMAGE_HOLE->mWidth / 2;
+    y = mHoleInfo[idx].my + Sexy::IMAGE_HOLE->mHeight / 2;
+    rot = mHoleInfo[idx].mRotation;
+    pri = mHoleInfo[idx].mDrawPriority;
+    return true;
+}
+
+void SpriteMgr::DrawBackground(Graphics *g)
+{
+    DrawBackdrop(g);
 
     // Moving-hole mode draws holes inside the priority loop (with balls) so path
     // masks still layer correctly; stationary holes stay on the background.
+    // Base Minimum still draws holes (as gray circles).
     if (!GetCircleShootApp()->mMovingHoleMode)
         DrawHoles(g);
 }

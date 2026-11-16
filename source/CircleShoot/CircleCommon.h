@@ -87,6 +87,7 @@ namespace Sexy
         DialogType_KillerBall = 34,
         DialogType_ShootSpeed = 35,
         DialogType_MultiFrog = 36,
+        DialogType_LevelSwap = 37,
         DialogType_Max,
     };
 

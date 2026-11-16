@@ -20,6 +20,7 @@
 #include "Res.h"
 
 #include <math.h>
+#include <vector>
 
 using namespace Sexy;
 
@@ -161,6 +162,34 @@ void CurveMgr::SetupLevel(LevelDesc *theDesc, SpriteMgr *theSpriteMgr, int theCu
     // Keep a stable facing offset from the authored/placed rotation.
     mHoleRotationOffset = aSkullRotation - GetHoleFacingRotation(mEffectiveEndPoint);
     RecalcDangerPoint();
+}
+
+void CurveMgr::ShiftChainToLoadedPath()
+{
+    BallList chain;
+    for (BallList::iterator anItr = mBallList.begin(); anItr != mBallList.end(); ++anItr)
+        chain.push_back(*anItr);
+    for (BulletList::iterator anItr = mBulletList.begin(); anItr != mBulletList.end(); ++anItr)
+    {
+        if ((*anItr)->GetHitBall() != NULL)
+            chain.push_back(*anItr);
+    }
+
+    float maxWP = 0.0f;
+    for (BallList::iterator anItr = chain.begin(); anItr != chain.end(); ++anItr)
+    {
+        float wp = (*anItr)->GetWayPoint();
+        if (wp > maxWP)
+            maxWP = wp;
+    }
+
+    int end = mWayPointMgr->GetEndPoint();
+    float scale = 1.0f;
+    if (end > 2 && maxWP > (float)(end - 2))
+        scale = (float)(end - 2) / maxWP;
+
+    for (BallList::iterator anItr = chain.begin(); anItr != chain.end(); ++anItr)
+        mWayPointMgr->SetWayPoint(*anItr, (*anItr)->GetWayPoint() * scale);
 }
 
 void CurveMgr::SetupLevelDesc(LevelDesc *theDesc)

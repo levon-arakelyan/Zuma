@@ -83,6 +83,8 @@ namespace ModesCatalog
         "Adds extra frogs in the original frog space. Each frog shows an equal slice of the sprite (for example 3 frogs each show one third). Choose 1 to 4 frogs. Each shot fires one ball per frog. The cursor frog is drawn on top.";
     const char *const kNonStopDescription =
         "If the chain splits, leftover balls toward the hole keep rolling instead of waiting for the rest of the train. Suck-back and the usual slowdown near the end are unchanged.";
+    const char *const kLevelSwapDescription =
+        "Every few seconds the screen fades to black, then the board changes to a random level as it fades back in. Your chain, gaps, power-ups, score, and level number stay. The path, background, and frog change, and a coin on screen moves to the nearest spot it could appear on the new level. Play continues through the fade. Clearing the level still advances to the next one as usual.";
 
     // --- Widget ids ---
     const int kGroupListId = 0;
@@ -131,6 +133,7 @@ namespace ModesCatalog
         {Mode_AutoAdvance, Group_GameMechanics, "Auto-advance", kAutoAdvanceDescription, false},
         {Mode_ShootSpeed, Group_GameMechanics, "Shoot speed", kShootSpeedDescription, true},
         {Mode_NonStop, Group_GameMechanics, "Non-stop", kNonStopDescription, false},
+        {Mode_LevelSwap, Group_Challenges, "Level swap", kLevelSwapDescription, true},
     };
     static const int kModeCount = sizeof(kModes) / sizeof(kModes[0]);
 
@@ -310,6 +313,7 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
     mShootSpeedCheckbox = mModeSlots[ModesCatalog::Mode_ShootSpeed].mCheckbox;
     mMultiFrogCheckbox = mModeSlots[ModesCatalog::Mode_MultiFrog].mCheckbox;
     mNonStopCheckbox = mModeSlots[ModesCatalog::Mode_NonStop].mCheckbox;
+    mLevelSwapCheckbox = mModeSlots[ModesCatalog::Mode_LevelSwap].mCheckbox;
 
     CircleShootApp *app = GetCircleShootApp();
     if (mColorsBanCheckbox != NULL)
@@ -348,6 +352,8 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
         mMultiFrogCheckbox->mChecked = app->mMultiFrogMode;
     if (mNonStopCheckbox != NULL)
         mNonStopCheckbox->mChecked = app->mNonStopMode;
+    if (mLevelSwapCheckbox != NULL)
+        mLevelSwapCheckbox->mChecked = app->mLevelSwapMode;
 
     for (int i = 0; i < MAX_BALL_COLORS; i++)
         mPendingBannedColors[i] = app->mBannedColors[i];
@@ -384,6 +390,9 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
     mPendingInvisiblePercent = (mPendingInvisiblePercent / 2) * 2;
     if (mPendingInvisiblePercent < 4)
         mPendingInvisiblePercent = 4;
+    mPendingLevelSwapIntervalSec = app->mLevelSwapIntervalSec;
+    if (mPendingLevelSwapIntervalSec < 1 || mPendingLevelSwapIntervalSec > 60)
+        mPendingLevelSwapIntervalSec = 5;
     mPendingKillerBallIntervalSec = app->mKillerBallIntervalSec;
     if (mPendingKillerBallIntervalSec < 2.0f || mPendingKillerBallIntervalSec > 15.0f)
         mPendingKillerBallIntervalSec = 10.0f;
@@ -434,6 +443,7 @@ ModesDialog::~ModesDialog()
     mShootSpeedCheckbox = NULL;
     mMultiFrogCheckbox = NULL;
     mNonStopCheckbox = NULL;
+    mLevelSwapCheckbox = NULL;
 
     delete mModesPane;
     mModesPane = NULL;
@@ -494,6 +504,7 @@ void ModesDialog::PrepareClose()
     mShootSpeedCheckbox = NULL;
     mMultiFrogCheckbox = NULL;
     mNonStopCheckbox = NULL;
+    mLevelSwapCheckbox = NULL;
 
     delete mModesPane;
     mModesPane = NULL;
@@ -817,6 +828,8 @@ void ModesDialog::OpenModePicker(ModesCatalog::ModeId theId)
         app->DoShootSpeedDialog();
     else if (def->id == ModesCatalog::Mode_MultiFrog)
         app->DoMultiFrogDialog();
+    else if (def->id == ModesCatalog::Mode_LevelSwap)
+        app->DoLevelSwapDialog();
 }
 
 void ModesDialog::ButtonMouseEnter(int theId)
@@ -1013,6 +1026,32 @@ bool ModesDialog::IsMultiFrogSelected() const
 bool ModesDialog::IsNonStopSelected() const
 {
     return mNonStopCheckbox != NULL && mNonStopCheckbox->IsChecked();
+}
+
+bool ModesDialog::IsLevelSwapSelected() const
+{
+    return mLevelSwapCheckbox != NULL && mLevelSwapCheckbox->IsChecked();
+}
+
+int ModesDialog::GetLevelSwapIntervalSec() const
+{
+    return mPendingLevelSwapIntervalSec;
+}
+
+void ModesDialog::SetLevelSwapIntervalSec(int sec)
+{
+    if (sec < 1)
+        sec = 1;
+    if (sec > 60)
+        sec = 60;
+    mPendingLevelSwapIntervalSec = sec;
+}
+
+void ModesDialog::SetLevelSwapSelected(bool selected)
+{
+    if (mLevelSwapCheckbox != NULL)
+        mLevelSwapCheckbox->SetChecked(selected, false);
+    MarkDirty();
 }
 
 void ModesDialog::GetBannedColors(bool outBanned[MAX_BALL_COLORS]) const

@@ -31,6 +31,7 @@
 #include "KillerBallDialog.h"
 #include "ShootSpeedDialog.h"
 #include "MultiFrogDialog.h"
+#include "LevelSwapDialog.h"
 #include "ConfirmContinueDialog.h"
 #include "StatsDialog.h"
 #include "UserDialog.h"
@@ -133,6 +134,8 @@ CircleShootApp::CircleShootApp()
     mMultiFrogMode = false;
     mMultiFrogCount = 2;
     mNonStopMode = false;
+    mLevelSwapMode = false;
+    mLevelSwapIntervalSec = 5;
 }
 
 CircleShootApp::~CircleShootApp()
@@ -1177,6 +1180,19 @@ void CircleShootApp::DoMultiFrogDialog()
     AddDialog(DialogType_MultiFrog, dialog);
 }
 
+void CircleShootApp::DoLevelSwapDialog()
+{
+    if (GetDialog(DialogType_LevelSwap) != NULL)
+        return;
+
+    ModesDialog *modes = (ModesDialog *)GetDialog(DialogType_Modes);
+    int sec = (modes != NULL) ? modes->GetLevelSwapIntervalSec() : mLevelSwapIntervalSec;
+
+    Dialog *dialog = new LevelSwapDialog(sec);
+    SetupDialog(dialog, 400);
+    AddDialog(DialogType_LevelSwap, dialog);
+}
+
 void CircleShootApp::DoModeHelpDialog(const std::string &theTitle, const std::string &theDescription)
 {
     KillDialog(DialogType_ModeHelp);
@@ -1320,6 +1336,8 @@ void CircleShootApp::FinishModesDialog(bool apply)
     bool shootSpeed = false;
     bool multiFrog = false;
     bool nonStop = false;
+    bool levelSwap = false;
+    int levelSwapIntervalSec = 5;
     bool bannedColors[MAX_BALL_COLORS];
     bool disabledPowerUps[PowerType_Max];
     float chainSpeed = 1.0f;
@@ -1370,6 +1388,8 @@ void CircleShootApp::FinishModesDialog(bool apply)
         shootSpeed = dialog->IsShootSpeedSelected();
         multiFrog = dialog->IsMultiFrogSelected();
         nonStop = dialog->IsNonStopSelected();
+        levelSwap = dialog->IsLevelSwapSelected();
+        levelSwapIntervalSec = dialog->GetLevelSwapIntervalSec();
         chainSpeed = dialog->GetChainSpeedMultiplier();
         movingHoleSpeed = dialog->GetMovingHoleSpeed();
         chainBonusThreshold = dialog->GetChainBonusThreshold();
@@ -1401,6 +1421,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
     KillDialog(DialogType_KillerBall);
     KillDialog(DialogType_ShootSpeed);
     KillDialog(DialogType_MultiFrog);
+    KillDialog(DialogType_LevelSwap);
     KillDialog(DialogType_ModeHelp);
     KillDialog(DialogType_Modes);
 
@@ -1462,6 +1483,12 @@ void CircleShootApp::FinishModesDialog(bool apply)
         if (mMultiFrogCount > 4)
             mMultiFrogCount = 4;
         mNonStopMode = nonStop;
+        mLevelSwapMode = levelSwap;
+        mLevelSwapIntervalSec = levelSwapIntervalSec;
+        if (mLevelSwapIntervalSec < 1)
+            mLevelSwapIntervalSec = 1;
+        if (mLevelSwapIntervalSec > 60)
+            mLevelSwapIntervalSec = 60;
     }
 }
 
@@ -1677,6 +1704,25 @@ void CircleShootApp::FinishMultiFrogDialog(bool apply)
     KillDialog(DialogType_MultiFrog);
 }
 
+void CircleShootApp::FinishLevelSwapDialog(bool apply)
+{
+    LevelSwapDialog *swapDialog = (LevelSwapDialog *)GetDialog(DialogType_LevelSwap);
+    ModesDialog *modesDialog = (ModesDialog *)GetDialog(DialogType_Modes);
+    if (swapDialog == NULL)
+        return;
+
+    if (apply)
+    {
+        if (modesDialog != NULL)
+        {
+            modesDialog->SetLevelSwapIntervalSec(swapDialog->GetIntervalSec());
+            modesDialog->SetLevelSwapSelected(true);
+        }
+    }
+
+    KillDialog(DialogType_LevelSwap);
+}
+
 void CircleShootApp::FinishColorShiftTargetDialog(bool apply)
 {
     ColorShiftTargetDialog *targetDialog =
@@ -1865,6 +1911,9 @@ bool CircleShootApp::CheckYesNoButton(int theButton)
         case 2036:
             FinishMultiFrogDialog(true);
             return true;
+        case 2037:
+            FinishLevelSwapDialog(true);
+            return true;
         default:
             KillDialog(theButton - 2000);
             return true;
@@ -1947,6 +1996,9 @@ bool CircleShootApp::CheckYesNoButton(int theButton)
             return true;
         case 3036:
             FinishMultiFrogDialog(false);
+            return true;
+        case 3037:
+            FinishLevelSwapDialog(false);
             return true;
         default:
             KillDialog(theButton - 3000);

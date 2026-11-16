@@ -6,7 +6,6 @@
 #include "CircleCommon.h"
 
 #include <list>
-#include <vector>
 
 extern int gBoardColor;
 extern int gCurveColor;
@@ -152,6 +151,9 @@ namespace Sexy
 		Ball *CheckBallIntersection(const SexyVector3 &p1, const SexyVector3 &v1, float &t);
 
 		void ActivatePower(Ball *theBall);
+
+		// Keep balls, gaps, and power-ups. Move them onto the path just loaded.
+		void ShiftChainToLoadedPath();
 
 		void DrawCurve(CurveDrawer &theDrawer);
 		void DrawTunnel(CurveDrawer &theDrawer);

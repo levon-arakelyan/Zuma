@@ -5,8 +5,10 @@
 #include <SexyAppFramework/Widget.h>
 #include <SexyAppFramework/SexyVector.h>
 #include "LevelParser.h"
+#include "CurveMgr.h"
 
 #include <list>
+#include <vector>
 
 namespace Sexy
 {
@@ -179,6 +181,12 @@ namespace Sexy
 		int mKillerBallCooldown; // frames until next killer launch
 		bool mKillerHitFrog;     // lose after this frame; do not SetLosing while iterating bullets
 
+		// Level swap. Cooldown < 0 means not armed yet. Transition counts down
+		// from 50 (0.5s): fade out to 0.2s, full black until 0.3s, swap at
+		// 0.25s, then fade back in.
+		int mLevelSwapCooldown;
+		int mLevelSwapTransition;
+
 		static void StaticLoadProc(void *theData);
 		void LoadProc();
 
@@ -205,6 +213,12 @@ namespace Sexy
 		void UpdateColorShift();
 		void UpdateInvisible();
 		void UpdateKillerBall();
+		bool UpdateLevelSwap();
+		bool BeginLevelSwap();
+		void ClearLevelSwap();
+		int LevelSwapIntervalTicks() const;
+		void PaintCurvesOntoBackground();
+		void DrawLevelSwapFade(Graphics *g);
 		void ResolveKillerCollisions();
 		void PlayKillerExplosion(float theX, float theY, int theType);
 		void ReleaseKillerBallColor(int theType);

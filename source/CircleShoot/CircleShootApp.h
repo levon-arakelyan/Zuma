@@ -99,6 +99,8 @@ namespace Sexy
         bool mMultiFrogMode;         // extra frogs equally spaced around the gun
         int mMultiFrogCount;         // 1-4 frogs when multi-frog is on
         bool mNonStopMode;           // hole-side chain segments keep rolling across gaps
+        bool mLevelSwapMode;
+        int mLevelSwapIntervalSec;   // 1-60: seconds between board swaps
 
         bool IsColorBanned(int theColor) const;
         void RollRandomBannedColors(int theNumColors = -1);
@@ -159,6 +161,7 @@ namespace Sexy
         void DoKillerBallDialog();
         void DoShootSpeedDialog();
         void DoMultiFrogDialog();
+        void DoLevelSwapDialog();
         void DoModeHelpDialog(const std::string &theTitle, const std::string &theDescription);
         void DoConfirmContinueDialog(const std::string &theVerboseLevelString, const std::string &theDisplayName, int theScore);
         void DoGetReadyDialog();
@@ -190,6 +193,7 @@ namespace Sexy
         void FinishKillerBallDialog(bool apply);
         void FinishShootSpeedDialog(bool apply);
         void FinishMultiFrogDialog(bool apply);
+        void FinishLevelSwapDialog(bool apply);
         void FinishConfirmMainMenuDialog(bool mainMenu);
         void FinishStatsDialog(bool);
 

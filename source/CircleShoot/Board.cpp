@@ -7,6 +7,7 @@
 #include <SexyAppFramework/ButtonListener.h>
 #include <SexyAppFramework/Font.h>
 #include <SexyAppFramework/WidgetManager.h>
+#include <SexyAppFramework/MemoryImage.h>
 #include <SexyAppFramework/KeyCodes.h>
 
 #include "Ball.h"
@@ -179,6 +180,8 @@ Board::Board(CircleShootApp *theApp)
     mIsEndless = false;
     mKillerBallCooldown = 0;
     mKillerHitFrog = false;
+    mLevelSwapCooldown = -1;
+    mLevelSwapTransition = 0;
 }
 
 Board::~Board()
@@ -313,6 +316,12 @@ void Board::StartLevel()
     {
         mKillerBallCooldown = 0;
     }
+
+    ClearLevelSwap();
+    if (mApp->mLevelSwapMode)
+        mLevelSwapCooldown = LevelSwapIntervalTicks();
+    else
+        mLevelSwapCooldown = -1;
 }
 
 void Board::SetLosing()
@@ -324,6 +333,7 @@ void Board::SetLosing()
     mLevelStats.mTimePlayed = mStateCount;
     mGameStats.Add(mLevelStats);
     mLevelStats.Reset();
+    ClearLevelSwap();
     DeleteBullets();
 
     if (!mGun->StartFire(false))
@@ -352,6 +362,7 @@ void Board::SetLosing()
 
 void Board::DoLevelUp(bool playSounds, bool isCheat)
 {
+    ClearLevelSwap();
     mApp->mDoPlayCount = true;
     if (mPracticeBoard.empty())
     {
@@ -750,8 +761,200 @@ void Board::UpdateBullets()
     }
 }
 
+int Board::LevelSwapIntervalTicks() const
+{
+    int sec = mApp->mLevelSwapIntervalSec;
+    if (sec < 1)
+        sec = 1;
+    if (sec > 60)
+        sec = 60;
+    return sec * 100;
+}
+
+void Board::ClearLevelSwap()
+{
+    mLevelSwapTransition = 0;
+}
+
+void Board::PaintCurvesOntoBackground()
+{
+    if (mApp->mBaseMinimumMode)
+        return;
+
+    CurveDrawer aCurveDrawer(mSpriteMgr);
+    for (int i = 0; i < mNumCurves; i++)
+    {
+        if (mLevelDesc->mCurveDesc[i].mDrawCurve && mLevelDesc->mCurveDesc[i].mDrawTunnels)
+            mCurveMgr[i]->DrawTunnel(aCurveDrawer);
+    }
+    for (int i = 0; i < mNumCurves; i++)
+    {
+        if (mLevelDesc->mCurveDesc[i].mDrawCurve)
+            mCurveMgr[i]->DrawCurve(aCurveDrawer);
+    }
+    aCurveDrawer.AddCurvesToMgr();
+}
+
+void Board::DrawLevelSwapFade(Graphics *g)
+{
+    if (mLevelSwapTransition <= 0)
+        return;
+
+    // 50 ticks = 0.5s. Fade out over 0.2s, hold black through 0.3s, fade in to 0.5s.
+    float u;
+    if (mLevelSwapTransition >= 30)
+        u = (50.0f - (float)mLevelSwapTransition) / 20.0f;
+    else if (mLevelSwapTransition <= 20)
+        u = (float)mLevelSwapTransition / 20.0f;
+    else
+        u = 1.0f;
+    if (u < 0.0f)
+        u = 0.0f;
+    if (u > 1.0f)
+        u = 1.0f;
+    u = u * u * (3.0f - 2.0f * u);
+
+    int alpha = (int)(u * 255.0f + 0.5f);
+    if (alpha <= 0)
+        return;
+
+    g->SetColor(Color(0, 0, 0, alpha));
+    g->FillRect(0, 0, CIRCLE_WINDOW_WIDTH, CIRCLE_WINDOW_HEIGHT);
+}
+
+bool Board::BeginLevelSwap()
+{
+    if (mLevelDesc == NULL || mApp->mLevelParser == NULL)
+        return false;
+
+    LevelDesc aGfx;
+    std::string avoid = mLevelDesc->mCurveDesc[0].mPath;
+    if (!mApp->mLevelParser->PickRandomGraphics(mNumCurves, avoid, aGfx))
+        return false;
+
+    for (int i = 0; i < 3; i++)
+    {
+        mLevelDesc->mCurveDesc[i].mPath = aGfx.mCurveDesc[i].mPath;
+        mLevelDesc->mCurveDesc[i].mSkullRotation = aGfx.mCurveDesc[i].mSkullRotation;
+        mLevelDesc->mCurveDesc[i].mDrawCurve = aGfx.mCurveDesc[i].mDrawCurve;
+        mLevelDesc->mCurveDesc[i].mDrawTunnels = aGfx.mCurveDesc[i].mDrawTunnels;
+        mLevelDesc->mCurveDesc[i].mCurveColor = aGfx.mCurveDesc[i].mCurveColor;
+    }
+    mLevelDesc->mGunX = aGfx.mGunX;
+    mLevelDesc->mGunY = aGfx.mGunY;
+    mLevelDesc->mBGColor = aGfx.mBGColor;
+    mLevelDesc->mImagePath = aGfx.mImagePath;
+    mLevelDesc->mSprites = aGfx.mSprites;
+    mLevelDesc->mBackgroundAlpha = aGfx.mBackgroundAlpha;
+    mLevelDesc->mInSpace = aGfx.mInSpace;
+
+    mGun->SetPos(mLevelDesc->mGunX, mLevelDesc->mGunY);
+    mSpriteMgr->SetupLevel(*mLevelDesc, MirrorType_None);
+
+    for (int i = 0; i < mNumCurves; i++)
+    {
+        mCurveMgr[i]->SetupLevel(mLevelDesc, mSpriteMgr, i, MirrorType_None);
+        mCurveMgr[i]->ShiftChainToLoadedPath();
+    }
+
+    PaintCurvesOntoBackground();
+
+    // Move a live coin onto the nearest new-level spot it could actually appear.
+    int oldX = 0;
+    int oldY = 0;
+    bool hadCoin = mCurTreasure != NULL;
+    if (hadCoin)
+    {
+        oldX = mCurTreasure->x;
+        oldY = mCurTreasure->y;
+    }
+    mCurTreasure = NULL;
+    mLevelDesc->mTreasurePoints = aGfx.mTreasurePoints;
+    if (hadCoin && !mLevelDesc->mTreasurePoints.empty())
+    {
+        int best = -1;
+        int bestDist = 0;
+        int nearest = -1;
+        int nearestDist = 0;
+        int idx = 0;
+        for (TreasurePointList::iterator anItr = mLevelDesc->mTreasurePoints.begin();
+             anItr != mLevelDesc->mTreasurePoints.end(); ++anItr, ++idx)
+        {
+            int dx = anItr->x - oldX;
+            int dy = anItr->y - oldY;
+            int dist = dx * dx + dy * dy;
+            if (nearest < 0 || dist < nearestDist)
+            {
+                nearest = idx;
+                nearestDist = dist;
+            }
+
+            bool canSpawn = true;
+            for (int j = 0; j < mNumCurves; j++)
+            {
+                if (anItr->mCurveDist[j] == 0)
+                    continue;
+                if (anItr->mCurveDist[j] > mCurveMgr[j]->GetFarthestBallPercent())
+                {
+                    canSpawn = false;
+                    break;
+                }
+            }
+            if (!canSpawn)
+                continue;
+            if (best < 0 || dist < bestDist)
+            {
+                best = idx;
+                bestDist = dist;
+            }
+        }
+
+        if (best < 0)
+            best = nearest;
+        mCurTreasureNum = best;
+        TreasurePointList::iterator anItr = mLevelDesc->mTreasurePoints.begin();
+        std::advance(anItr, best);
+        mCurTreasure = &*anItr;
+    }
+    return true;
+}
+
+bool Board::UpdateLevelSwap()
+{
+    if (!mApp->mLevelSwapMode || mGameState != GameState_Playing)
+        return false;
+
+    if (mLevelSwapTransition > 0)
+    {
+        mLevelSwapTransition--;
+        // 0.25s into the fade (counter 25). The screen is already fully black.
+        if (mLevelSwapTransition == 25)
+            BeginLevelSwap();
+        if (mLevelSwapTransition == 0)
+            mLevelSwapCooldown = LevelSwapIntervalTicks();
+        return false;
+    }
+
+    if (mLevelSwapCooldown < 0)
+    {
+        mLevelSwapCooldown = LevelSwapIntervalTicks();
+        return false;
+    }
+
+    if (mLevelSwapCooldown > 0)
+    {
+        mLevelSwapCooldown--;
+        return false;
+    }
+
+    mLevelSwapTransition = 50;
+    return false;
+}
+
 void Board::UpdatePlaying()
 {
+    UpdateLevelSwap();
+
     Bullet *aBullet;
     while ((aBullet = mGun->GetFiredBullet()) != NULL)
     {
@@ -1777,7 +1980,10 @@ void Board::DrawOverlay(Graphics *g)
     mParticleMgr->DrawTopMost(g);
 
     if (mPauseCount == 0)
+    {
+        DrawLevelSwapFade(g);
         return;
+    }
 
     if (!mShowBallsDuringPause && mLives > 0)
     {
@@ -1796,6 +2002,8 @@ void Board::DrawOverlay(Graphics *g)
         g->SetColor(Color(0xFFFFFF));
         g->DrawString(pauseText, (mWidth - textWidth) / 2, textY);
     }
+
+    DrawLevelSwapFade(g);
 }
 
 void Board::Update()

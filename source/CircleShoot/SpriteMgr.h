@@ -105,6 +105,8 @@ public:
 	void UpdateBackgroundTransition(int theStep);
 
 	void DrawBackground(Graphics *g);
+	void DrawBackdrop(Graphics *g);
+	bool GetHoleCenter(int theCurveNum, int &x, int &y, float &rot, int &pri) const;
 	void DrawLevel(Graphics *g);
 	void DrawSprites(Graphics *g, int thePriority);
 	void DrawBorder(Graphics *g);
