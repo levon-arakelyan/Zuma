@@ -28,6 +28,7 @@ namespace Sexy
         {
             Group_GameMechanics = 0,
             Group_Challenges,
+            Group_EasyPeasy,
             Group_Count
         };
 
@@ -52,6 +53,7 @@ namespace Sexy
             Mode_MultiFrog,
             Mode_NonStop,
             Mode_LevelSwap,
+            Mode_MissileStrike,
             Mode_Count
         };
     }
@@ -131,6 +133,7 @@ namespace Sexy
         bool IsMultiFrogSelected() const;
         bool IsNonStopSelected() const;
         bool IsLevelSwapSelected() const;
+        bool IsMissileStrikeSelected() const;
 
         int GetLevelSwapIntervalSec() const;
         void SetLevelSwapIntervalSec(int sec);
@@ -196,6 +199,7 @@ namespace Sexy
         void SetMultiFrogCount(int theCount);
         void SetMultiFrogSelected(bool selected);
         void SetNonStopSelected(bool selected);
+        void SetMissileStrikeSelected(bool selected);
 
         void PrepareClose();
 
@@ -219,6 +223,7 @@ namespace Sexy
         Checkbox *mMultiFrogCheckbox;
         Checkbox *mNonStopCheckbox;
         Checkbox *mLevelSwapCheckbox;
+        Checkbox *mMissileStrikeCheckbox;
 
         ModeWidgetSlot mModeSlots[ModesCatalog::Mode_Count];
 

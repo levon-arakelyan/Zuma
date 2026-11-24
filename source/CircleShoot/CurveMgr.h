@@ -110,7 +110,7 @@ namespace Sexy
 		void AdvanceMergingBullet(BulletList::iterator &theBulletItr);
 		void AdvanceBullets();
 		void StartClearCount(Ball *theBall);
-		void ActivateBomb(Ball *theBall);
+		void ActivateBomb(Ball *theBall, float theScale = 1.0f);
 		void ClearPendingSucks(Ball *theEndBall);
 
 		void RollBallsIn();
@@ -149,6 +149,12 @@ namespace Sexy
 		bool HasHoleCaughtLeadBall() const;
 
 		Ball *CheckBallIntersection(const SexyVector3 &p1, const SexyVector3 &v1, float &t);
+
+		// Missile strike: first ball the bomb shot touches (not in a tunnel, not being cleared).
+		Ball *FindShootableBallTouching(Bullet *theBullet);
+		// Bomb blast centered on theBall; theScale multiplies the blast reach.
+		void ActivateScaledBomb(Ball *theBall, float theScale) { ActivateBomb(theBall, theScale); }
+		void ClearBallsInBlast(Ball *theCenter, float theScale);
 
 		void ActivatePower(Ball *theBall);
 

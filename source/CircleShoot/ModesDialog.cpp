@@ -83,6 +83,8 @@ namespace ModesCatalog
         "Adds extra frogs in the original frog space. Each frog shows an equal slice of the sprite (for example 3 frogs each show one third). Choose 1 to 4 frogs. Each shot fires one ball per frog. The cursor frog is drawn on top.";
     const char *const kNonStopDescription =
         "If the chain splits, leftover balls toward the hole keep rolling instead of waiting for the rest of the train. Suck-back and the usual slowdown near the end are unchanged.";
+    const char *const kMissileStrikeDescription =
+        "Adds a missile strike button under your lives. Click it to aim (the game keeps running), then click anywhere to fire the ball in the frog's mouth as a bomb, straight at that spot. It explodes on the first chain ball it touches with 1.3x the blast of a regular bomb. Right-click backs out for free. After each strike the button recharges for 15 seconds.";
     const char *const kLevelSwapDescription =
         "Every few seconds the screen fades to black, then the board changes to a random level as it fades back in. Your chain, gaps, power-ups, score, and level number stay. The path, background, and frog change, and a coin on screen moves to the nearest spot it could appear on the new level. Play continues through the fade. Clearing the level still advances to the next one as usual.";
 
@@ -101,6 +103,7 @@ namespace ModesCatalog
     static const GroupDef kGroups[] = {
         {Group_GameMechanics, "Game Mechanics"},
         {Group_Challenges, "Challenges"},
+        {Group_EasyPeasy, "Easy Peasy"},
     };
     static const int kGroupCount = sizeof(kGroups) / sizeof(kGroups[0]);
 
@@ -134,6 +137,7 @@ namespace ModesCatalog
         {Mode_ShootSpeed, Group_GameMechanics, "Shoot speed", kShootSpeedDescription, true},
         {Mode_NonStop, Group_GameMechanics, "Non-stop", kNonStopDescription, false},
         {Mode_LevelSwap, Group_Challenges, "Level swap", kLevelSwapDescription, true},
+        {Mode_MissileStrike, Group_EasyPeasy, "Missile strike", kMissileStrikeDescription, false},
     };
     static const int kModeCount = sizeof(kModes) / sizeof(kModes[0]);
 
@@ -314,6 +318,7 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
     mMultiFrogCheckbox = mModeSlots[ModesCatalog::Mode_MultiFrog].mCheckbox;
     mNonStopCheckbox = mModeSlots[ModesCatalog::Mode_NonStop].mCheckbox;
     mLevelSwapCheckbox = mModeSlots[ModesCatalog::Mode_LevelSwap].mCheckbox;
+    mMissileStrikeCheckbox = mModeSlots[ModesCatalog::Mode_MissileStrike].mCheckbox;
 
     CircleShootApp *app = GetCircleShootApp();
     if (mColorsBanCheckbox != NULL)
@@ -354,6 +359,8 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
         mNonStopCheckbox->mChecked = app->mNonStopMode;
     if (mLevelSwapCheckbox != NULL)
         mLevelSwapCheckbox->mChecked = app->mLevelSwapMode;
+    if (mMissileStrikeCheckbox != NULL)
+        mMissileStrikeCheckbox->mChecked = app->mMissileStrikeMode;
 
     for (int i = 0; i < MAX_BALL_COLORS; i++)
         mPendingBannedColors[i] = app->mBannedColors[i];
@@ -444,6 +451,7 @@ ModesDialog::~ModesDialog()
     mMultiFrogCheckbox = NULL;
     mNonStopCheckbox = NULL;
     mLevelSwapCheckbox = NULL;
+    mMissileStrikeCheckbox = NULL;
 
     delete mModesPane;
     mModesPane = NULL;
@@ -505,6 +513,7 @@ void ModesDialog::PrepareClose()
     mMultiFrogCheckbox = NULL;
     mNonStopCheckbox = NULL;
     mLevelSwapCheckbox = NULL;
+    mMissileStrikeCheckbox = NULL;
 
     delete mModesPane;
     mModesPane = NULL;
@@ -1033,6 +1042,11 @@ bool ModesDialog::IsLevelSwapSelected() const
     return mLevelSwapCheckbox != NULL && mLevelSwapCheckbox->IsChecked();
 }
 
+bool ModesDialog::IsMissileStrikeSelected() const
+{
+    return mMissileStrikeCheckbox != NULL && mMissileStrikeCheckbox->IsChecked();
+}
+
 int ModesDialog::GetLevelSwapIntervalSec() const
 {
     return mPendingLevelSwapIntervalSec;
@@ -1385,6 +1399,13 @@ void ModesDialog::SetNonStopSelected(bool selected)
 {
     if (mNonStopCheckbox != NULL)
         mNonStopCheckbox->SetChecked(selected, false);
+    MarkDirty();
+}
+
+void ModesDialog::SetMissileStrikeSelected(bool selected)
+{
+    if (mMissileStrikeCheckbox != NULL)
+        mMissileStrikeCheckbox->SetChecked(selected, false);
     MarkDirty();
 }
 

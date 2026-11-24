@@ -257,13 +257,18 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-# MSVC7 + incremental Ninja can leave stale .obj files with old CircleShootApp /
-# ModesDialog layouts after header growth, which shows up as CRT "Buffer overrun"
+# MSVC7 + incremental Ninja can leave stale .obj files with old class layouts
+# (CircleShootApp, ModesDialog, Board, Bullet, ...) after header growth, which shows up as CRT "Buffer overrun"
 # on quit. Force a full CircleShoot recompile when those headers change.
 $layoutHeaders = @(
     (Join-Path $PWD "source\CircleShoot\CircleShootApp.h"),
     (Join-Path $PWD "source\CircleShoot\ModesDialog.h"),
-    (Join-Path $PWD "source\CircleShoot\CircleCommon.h")
+    (Join-Path $PWD "source\CircleShoot\CircleCommon.h"),
+    (Join-Path $PWD "source\CircleShoot\Board.h"),
+    (Join-Path $PWD "source\CircleShoot\Ball.h"),
+    (Join-Path $PWD "source\CircleShoot\Bullet.h"),
+    (Join-Path $PWD "source\CircleShoot\Gun.h"),
+    (Join-Path $PWD "source\CircleShoot\CurveMgr.h")
 )
 $stampPath = Join-Path $PWD "build\circleshoot-layout.stamp"
 $layoutHash = ($layoutHeaders | Where-Object { Test-Path $_ } | ForEach-Object {

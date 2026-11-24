@@ -85,6 +85,10 @@ namespace Sexy
 	protected:
 		// Append-only for MSVC incremental layout stability
 		bool mIsKillerBall;
+
+	public:
+		// Missile strike bomb shot (append-only). Not saved with the game.
+		bool mMissileStrike;
 	};
 
 } // namespace Sexy

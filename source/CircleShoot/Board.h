@@ -187,6 +187,16 @@ namespace Sexy
 		int mLevelSwapCooldown;
 		int mLevelSwapTransition;
 
+		// Missile strike button: cooldown ticks left (100/s) and whether the aim screen is open.
+		int mMissileStrikeCooldown;
+		bool mMissileStrikeSelecting;
+		int mStrikeMouseX;
+		int mStrikeMouseY;
+		// Mouth ball shown as a bomb while aiming, and its power before that.
+		Bullet *mMissileStrikeArmedBullet;
+		PowerType mMissileStrikeArmedOldPower;
+		int mStrikeShakeTicks; // board shake after a strike hits, counts down
+
 		static void StaticLoadProc(void *theData);
 		void LoadProc();
 
@@ -222,6 +232,14 @@ namespace Sexy
 		void ResolveKillerCollisions();
 		void PlayKillerExplosion(float theX, float theY, int theType);
 		void ReleaseKillerBallColor(int theType);
+		void ArmMissileStrikeBullet();
+		void DisarmMissileStrikeBullet();
+		bool FireMissileStrikeBomb(int theX, int theY);
+		void SetMissileStrikeSelecting(bool selecting);
+		void GetMissileStrikeIconCenter(int &theX, int &theY);
+		bool MissileStrikeIconHit(int theX, int theY);
+		void DrawMissileStrikeIcon(Graphics *g);
+		void DrawMissileStrikeOverlay(Graphics *g);
 		void UpdateMiscStuff();
 
 		void DrawTreasure(Graphics *g);

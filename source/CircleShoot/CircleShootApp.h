@@ -100,6 +100,7 @@ namespace Sexy
         int mMultiFrogCount;         // 1-4 frogs when multi-frog is on
         bool mNonStopMode;           // hole-side chain segments keep rolling across gaps
         bool mLevelSwapMode;
+        bool mMissileStrikeMode;            // aim button fires a big bomb shot
         int mLevelSwapIntervalSec;   // 1-60: seconds between board swaps
 
         bool IsColorBanned(int theColor) const;

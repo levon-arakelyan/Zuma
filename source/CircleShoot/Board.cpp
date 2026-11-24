@@ -182,6 +182,13 @@ Board::Board(CircleShootApp *theApp)
     mKillerHitFrog = false;
     mLevelSwapCooldown = -1;
     mLevelSwapTransition = 0;
+    mMissileStrikeCooldown = 0;
+    mMissileStrikeSelecting = false;
+    mStrikeMouseX = 0;
+    mStrikeMouseY = 0;
+    mMissileStrikeArmedBullet = NULL;
+    mMissileStrikeArmedOldPower = PowerType_None;
+    mStrikeShakeTicks = 0;
 }
 
 Board::~Board()
@@ -299,6 +306,8 @@ void Board::StartLevel()
     mSoundMgr->PlayLoop(LoopType_RollIn);
     mLevelBeginning = true;
     mKillerHitFrog = false;
+    SetMissileStrikeSelecting(false);
+    mMissileStrikeCooldown = 0; // strike button is ready at every level start
 
     // First killer after one full interval from level start.
     if (mApp->mKillerBallMode)
@@ -363,6 +372,8 @@ void Board::SetLosing()
 void Board::DoLevelUp(bool playSounds, bool isCheat)
 {
     ClearLevelSwap();
+    SetMissileStrikeSelecting(false);
+    mMissileStrikeCooldown = 0; // strike button is ready again once the level is cleared
     mApp->mDoPlayCount = true;
     if (mPracticeBoard.empty())
     {
@@ -567,6 +578,16 @@ void Board::SyncPracticeMode()
     }
 }
 
+// Missile strike tuning.
+namespace
+{
+    const float kMissileStrikeBombScale = 1.3f;    // blast reach vs. the Bomb power-up
+    const int kMissileStrikeCooldownTicks = 2500;  // 25 s button recharge
+    const int kStrikeHoleRadius = 40;              // clear circle in the overlay (matches the white ring)
+    const int kStrikeShakeTicks = 100;              // 0.4 s earthquake after a hit
+    const float kStrikeShakeAmplitude = 11.0f;      // px at the start, fades to 0
+}
+
 void Board::AdvanceFreeBullet(BulletList::iterator &theBulletItr)
 {
     Bullet *aBullet = *theBulletItr;
@@ -721,7 +742,29 @@ bool Board::AdvancePlayerBulletStep(BulletList::iterator &theBulletItr)
         }
     }
 
-    if (gCheckCollision)
+    if (aBullet->mMissileStrike)
+    {
+        for (int i = 0; i < mNumCurves; i++)
+        {
+            Ball *aHit = mCurveMgr[i]->FindShootableBallTouching(aBullet);
+            if (aHit != NULL)
+            {
+                mApp->PlaySample(Sexy::SOUND_EXPLODE);
+                mCurveMgr[i]->ActivateScaledBomb(aHit, kMissileStrikeBombScale);
+                // The blast also reaches balls on other paths, tunnels included.
+                for (int j = 0; j < mNumCurves; j++)
+                {
+                    if (j != i)
+                        mCurveMgr[j]->ClearBallsInBlast(aHit, kMissileStrikeBombScale);
+                }
+                mStrikeShakeTicks = kStrikeShakeTicks;
+                delete aBullet;
+                theBulletItr = mBulletList.erase(theBulletItr);
+                return true;
+            }
+        }
+    }
+    else if (gCheckCollision)
     {
         for (int i = 0; i < mNumCurves; i++)
         {
@@ -749,6 +792,300 @@ bool Board::AdvancePlayerBulletStep(BulletList::iterator &theBulletItr)
     delete aBullet;
     theBulletItr = mBulletList.erase(theBulletItr);
     return true;
+}
+
+// Show the mouth ball as a bomb while the aim screen is open.
+void Board::ArmMissileStrikeBullet()
+{
+    Bullet *aBullet = mGun->GetBullet();
+    if (aBullet == mMissileStrikeArmedBullet)
+        return;
+
+    DisarmMissileStrikeBullet();
+    if (aBullet == NULL)
+        return;
+
+    mMissileStrikeArmedBullet = aBullet;
+    mMissileStrikeArmedOldPower = aBullet->GetPowerType();
+    aBullet->SetPowerType(PowerType_Bomb, false);
+}
+
+void Board::DisarmMissileStrikeBullet()
+{
+    Bullet *aBullet = mMissileStrikeArmedBullet;
+    mMissileStrikeArmedBullet = NULL;
+
+    // Only touch it if the gun still holds it.
+    if (aBullet != NULL && (aBullet == mGun->GetBullet() || aBullet == mGun->GetNextBullet()))
+        aBullet->SetPowerType(mMissileStrikeArmedOldPower, false);
+}
+
+bool Board::FireMissileStrikeBomb(int theX, int theY)
+{
+    for (int i = 0; i < mNumCurves; i++)
+    {
+        if (!mCurveMgr[i]->CanFire())
+            return false;
+    }
+
+    ArmMissileStrikeBullet();
+    Bullet *aBullet = mMissileStrikeArmedBullet;
+    if (aBullet == NULL)
+        return false;
+
+    // Face the click so the shot flies straight at it.
+    MouseMove(theX, theY);
+
+    aBullet->mMissileStrike = true;
+    if (!mGun->StartFire())
+    {
+        aBullet->mMissileStrike = false;
+        return false;
+    }
+
+    // Multi-frog copies the shot; only the main frog fires the bomb.
+    for (int i = 0; i < mGun->mExtraBulletCount; i++)
+    {
+        if (mGun->mExtraBullets[i] != NULL)
+            mGun->mExtraBullets[i]->SetPowerType(mMissileStrikeArmedOldPower, false);
+    }
+
+    mMissileStrikeArmedBullet = NULL; // fired: keep the bomb look
+    mMissileStrikeCooldown = kMissileStrikeCooldownTicks;
+    mApp->PlaySample(Sexy::SOUND_BALLFIRE);
+    return true;
+}
+
+void Board::SetMissileStrikeSelecting(bool selecting)
+{
+    if (mMissileStrikeSelecting == selecting)
+        return;
+
+    mMissileStrikeSelecting = selecting;
+    if (selecting)
+        ArmMissileStrikeBullet();
+    else
+        DisarmMissileStrikeBullet();
+
+    gSexyAppBase->SetCursor(selecting ? Sexy::CURSOR_NONE : Sexy::CURSOR_POINTER);
+    MarkDirty();
+}
+
+void Board::GetMissileStrikeIconCenter(int &theX, int &theY)
+{
+    theX = 28 + 12;
+    theY = 3 + Sexy::IMAGE_FROG_LIVES->mHeight + 4 + 20;
+}
+
+bool Board::MissileStrikeIconHit(int theX, int theY)
+{
+    int cx, cy;
+    GetMissileStrikeIconCenter(cx, cy);
+    return theX >= cx - 16 && theX <= cx + 16 && theY >= cy - 16 && theY <= cy + 16;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Missile strike circles. The library has no circle drawing, so each ring or
+// disc is rendered once into a white, anti-aliased image and cached; drawing
+// tints it with the current color. The cache lives for the whole run.
+///////////////////////////////////////////////////////////////////////////////
+namespace
+{
+    struct AimCircleImage
+    {
+        int mRadiusKey;    // radius * 4
+        int mThicknessKey; // thickness * 4; 0 = filled disc
+        MemoryImage *mImage;
+    };
+
+    const int kMaxAimCircleImages = 16;
+    AimCircleImage gAimCircleImages[kMaxAimCircleImages];
+    int gAimCircleImageCount = 0;
+    MemoryImage *gStrikeHoleImage = NULL;
+}
+
+// White image of a ring (theThickness > 0) or a filled disc (theThickness <= 0),
+// centered in a square of odd size so it lines up with whole pixels.
+static MemoryImage *GetAimCircleImage(float theRadius, float theThickness)
+{
+    int aRadiusKey = (int)(theRadius * 4.0f + 0.5f);
+    int aThicknessKey = theThickness > 0.0f ? (int)(theThickness * 4.0f + 0.5f) : 0;
+    for (int i = 0; i < gAimCircleImageCount; i++)
+    {
+        if (gAimCircleImages[i].mRadiusKey == aRadiusKey && gAimCircleImages[i].mThicknessKey == aThicknessKey)
+            return gAimCircleImages[i].mImage;
+    }
+
+    float aHalf = theThickness > 0.0f ? theThickness * 0.5f : 0.0f;
+    int aSize = (int)ceilf(theRadius + aHalf) * 2 + 3;
+
+    MemoryImage *anImage = new MemoryImage(gSexyAppBase);
+    anImage->Create(aSize, aSize);
+    anImage->SetImageMode(true, true);
+    ulong *aBits = anImage->GetBits();
+
+    float aCenter = aSize * 0.5f;
+    for (int y = 0; y < aSize; y++)
+    {
+        for (int x = 0; x < aSize; x++)
+        {
+            float dx = (x + 0.5f) - aCenter;
+            float dy = (y + 0.5f) - aCenter;
+            float d = sqrtf(dx * dx + dy * dy);
+
+            // Coverage of this pixel, with a one-pixel soft edge.
+            float aCover;
+            if (theThickness > 0.0f)
+                aCover = aHalf + 0.5f - fabsf(d - theRadius);
+            else
+                aCover = theRadius + 0.5f - d;
+            if (aCover < 0.0f)
+                aCover = 0.0f;
+            if (aCover > 1.0f)
+                aCover = 1.0f;
+
+            ulong anAlpha = (ulong)(aCover * 255.0f + 0.5f);
+            aBits[y * aSize + x] = (anAlpha << 24) | 0x00FFFFFF;
+        }
+    }
+    anImage->BitsChanged();
+
+    if (gAimCircleImageCount < kMaxAimCircleImages)
+    {
+        AimCircleImage &anEntry = gAimCircleImages[gAimCircleImageCount++];
+        anEntry.mRadiusKey = aRadiusKey;
+        anEntry.mThicknessKey = aThicknessKey;
+        anEntry.mImage = anImage;
+    }
+    return anImage;
+}
+
+static void DrawAimCircleImage(Graphics *g, int theX, int theY, float theRadius, float theThickness)
+{
+    MemoryImage *anImage = GetAimCircleImage(theRadius, theThickness);
+    bool wasColorize = g->GetColorizeImages();
+    g->SetColorizeImages(true);
+    g->DrawImage(anImage, theX - anImage->mWidth / 2, theY - anImage->mHeight / 2);
+    g->SetColorizeImages(wasColorize);
+
+    if (gAimCircleImageCount >= kMaxAimCircleImages)
+        delete anImage; // cache full (should not happen): don't leak
+}
+
+// Ring outline in the current color.
+static void DrawAimRing(Graphics *g, int theX, int theY, float theRadius, int theThickness)
+{
+    DrawAimCircleImage(g, theX, theY, theRadius, (float)theThickness);
+}
+
+// Filled disc in the current color.
+static void DrawAimDisc(Graphics *g, int theX, int theY, float theRadius)
+{
+    DrawAimCircleImage(g, theX, theY, theRadius, 0.0f);
+}
+
+// Ring, four ticks crossing it, and a center dot.
+static void DrawAimCrosshair(Graphics *g, int theX, int theY, int theRadius, const Color &theColor)
+{
+    g->SetColor(theColor);
+    int aThick = theRadius >= 24 ? 3 : 2;
+    DrawAimRing(g, theX, theY, (float)theRadius * 0.7f, aThick);
+
+    // Ticks from 30% to 100% of the radius, aThick wide, centered on the axes.
+    int anInner = theRadius * 3 / 10;
+    int aLen = theRadius - anInner;
+    int anOff = aThick / 2;
+    g->FillRect(theX - theRadius, theY - anOff, aLen, aThick);
+    g->FillRect(theX + anInner + 1, theY - anOff, aLen, aThick);
+    g->FillRect(theX - anOff, theY - theRadius, aThick, aLen);
+    g->FillRect(theX - anOff, theY + anInner + 1, aThick, aLen);
+
+    int aDot = theRadius / 8;
+    if (aDot < 2)
+        aDot = 2;
+    DrawAimDisc(g, theX, theY, (float)aDot);
+}
+
+// Square of 75% black with a soft-edged clear circle in the middle.
+static MemoryImage *GetStrikeHoleImage(int theRadius)
+{
+    if (gStrikeHoleImage != NULL)
+        return gStrikeHoleImage;
+
+    int aSize = theRadius * 2 + 3;
+    MemoryImage *anImage = new MemoryImage(gSexyAppBase);
+    anImage->Create(aSize, aSize);
+    anImage->SetImageMode(true, true);
+    ulong *aBits = anImage->GetBits();
+
+    float aCenter = aSize * 0.5f;
+    for (int y = 0; y < aSize; y++)
+    {
+        for (int x = 0; x < aSize; x++)
+        {
+            float dx = (x + 0.5f) - aCenter;
+            float dy = (y + 0.5f) - aCenter;
+            float aCover = sqrtf(dx * dx + dy * dy) - (float)theRadius + 0.5f;
+            if (aCover < 0.0f)
+                aCover = 0.0f;
+            if (aCover > 1.0f)
+                aCover = 1.0f;
+
+            ulong anAlpha = (ulong)(aCover * 191.0f + 0.5f);
+            aBits[y * aSize + x] = anAlpha << 24; // black
+        }
+    }
+    anImage->BitsChanged();
+    gStrikeHoleImage = anImage;
+    return anImage;
+}
+
+void Board::DrawMissileStrikeIcon(Graphics *g)
+{
+    int cx, cy;
+    GetMissileStrikeIconCenter(cx, cy);
+
+    bool aReady = mMissileStrikeCooldown <= 0;
+
+    g->SetColor(Color(0, 0, 0));
+    DrawAimDisc(g, cx, cy, 15.0f);
+    g->SetColor(aReady ? Color(255, 220, 0) : Color(110, 110, 110));
+    DrawAimRing(g, cx, cy, 14.0f, 2);
+
+    if (aReady)
+    {
+        DrawAimCrosshair(g, cx, cy, 12, Color(255, 70, 50));
+        return;
+    }
+
+    DrawAimCrosshair(g, cx, cy, 12, Color(90, 90, 90));
+
+    int aSeconds = (mMissileStrikeCooldown + 99) / 100;
+    std::string aText = Sexy::StrFormat("%d", aSeconds);
+    g->SetFont(Sexy::FONT_DIALOG);
+    int aWidth = Sexy::FONT_DIALOG->StringWidth(aText);
+    int aBaseline = cy + Sexy::FONT_DIALOG->GetAscent() / 2;
+    g->SetColor(Color(0, 0, 0));
+    g->DrawString(aText, cx - aWidth / 2 + 1, aBaseline + 1);
+    g->SetColor(Color(255, 255, 255));
+    g->DrawString(aText, cx - aWidth / 2, aBaseline);
+}
+
+void Board::DrawMissileStrikeOverlay(Graphics *g)
+{
+    // 75% black everywhere except a clear circle around the crosshair. The
+    // circle comes from a pre-rendered image; plain rects cover the rest.
+    MemoryImage *aHole = GetStrikeHoleImage(kStrikeHoleRadius);
+    int aSize = aHole->mWidth;
+    int aLeft = mStrikeMouseX - aSize / 2;
+    int aTop = mStrikeMouseY - aSize / 2;
+
+    g->SetColor(Color(0, 0, 0, 191));
+    g->FillRect(0, 0, mWidth, aTop);                                      // above
+    g->FillRect(0, aTop + aSize, mWidth, mHeight - (aTop + aSize));       // below
+    g->FillRect(0, aTop, aLeft, aSize);                                   // left
+    g->FillRect(aLeft + aSize, aTop, mWidth - (aLeft + aSize), aSize);    // right
+    g->DrawImage(aHole, aLeft, aTop);
 }
 
 void Board::UpdateBullets()
@@ -2047,6 +2384,24 @@ void Board::Update()
     }
     else
     {
+        if (mMissileStrikeCooldown > 0)
+            mMissileStrikeCooldown--;
+        if (mStrikeShakeTicks > 0)
+        {
+            mStrikeShakeTicks--;
+            MarkDirty();
+        }
+
+        // The aim screen does not pause play. Close it if the level ends, and
+        // keep the mouth ball shown as a bomb after a reload.
+        if (mMissileStrikeSelecting)
+        {
+            if (mGameState != GameState_Playing || !mApp->mMissileStrikeMode)
+                SetMissileStrikeSelecting(false);
+            else
+                ArmMissileStrikeBullet();
+        }
+
         mApp->mUnk29++;
         mGun->Update();
         mSpriteMgr->Update();
@@ -2089,6 +2444,23 @@ void Board::Draw(Graphics *g)
         mApp->mWorkerThread->WaitForTask();
     }
 
+    // Strike earthquake: shift the whole board by a fading wobble. Uses no RNG
+    // so the game's random sequence is unaffected.
+    int aShakeX = 0;
+    int aShakeY = 0;
+    if (mStrikeShakeTicks > 0)
+    {
+        float anAmp = kStrikeShakeAmplitude * (float)mStrikeShakeTicks / (float)kStrikeShakeTicks;
+        aShakeX = (int)(anAmp * sinf(mStrikeShakeTicks * 1.9f));
+        aShakeY = (int)(anAmp * cosf(mStrikeShakeTicks * 2.7f));
+        if (aShakeX != 0 || aShakeY != 0)
+        {
+            g->SetColor(Color(0, 0, 0));
+            g->FillRect(0, 0, mWidth, mHeight);
+            g->Translate(aShakeX, aShakeY);
+        }
+    }
+
     if (mGameState == GameState_Losing)
     {
         DrawLosing(g);
@@ -2109,11 +2481,31 @@ void Board::Draw(Graphics *g)
     if (!mApp->mBaseMinimumMode)
         mSpriteMgr->DrawBorder(g);
     DrawText(g);
+
+    // The strike button and aim screen stay still.
+    if (aShakeX != 0 || aShakeY != 0)
+        g->Translate(-aShakeX, -aShakeY);
+
+    if (mApp->mMissileStrikeMode && mGameState == GameState_Playing)
+    {
+        if (mMissileStrikeSelecting)
+            DrawMissileStrikeOverlay(g);
+        DrawMissileStrikeIcon(g);
+        if (mMissileStrikeSelecting)
+        {
+            g->SetColor(Color(255, 255, 255));
+            DrawAimRing(g, mStrikeMouseX, mStrikeMouseY, 40.0f, 3);
+            DrawAimCrosshair(g, mStrikeMouseX, mStrikeMouseY, 30, Color(255, 70, 50));
+        }
+    }
 }
 
 void Board::MouseMove(int x, int y)
 {
     Widget::MouseMove(x, y);
+
+    mStrikeMouseX = x;
+    mStrikeMouseY = y;
 
     if (mPauseCount != 0)
         return;
@@ -2161,6 +2553,33 @@ void Board::MouseDown(int x, int y, int theClickCount)
     }
     else if (mPauseUpdateCnt != mUpdateCnt)
     {
+        if (mMissileStrikeSelecting)
+        {
+            // Right-click or clicking the button again backs out at no cost.
+            if (theClickCount < 0 || MissileStrikeIconHit(x, y))
+            {
+                SetMissileStrikeSelecting(false);
+                return;
+            }
+
+            // The strike fires straight at the click; the cooldown starts here.
+            if (FireMissileStrikeBomb(x, y))
+                SetMissileStrikeSelecting(false);
+            return;
+        }
+
+        if (mGameState == GameState_Playing && mApp->mMissileStrikeMode && MissileStrikeIconHit(x, y))
+        {
+            if (mMissileStrikeCooldown <= 0)
+            {
+                mStrikeMouseX = x;
+                mStrikeMouseY = y;
+                SetMissileStrikeSelecting(true);
+                mApp->PlaySample(Sexy::SOUND_BUTTON1);
+            }
+            return;
+        }
+
         if (mGameState == GameState_Playing)
         {
             for (int i = 0; i < mNumCurves; i++)

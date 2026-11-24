@@ -135,6 +135,7 @@ CircleShootApp::CircleShootApp()
     mMultiFrogCount = 2;
     mNonStopMode = false;
     mLevelSwapMode = false;
+    mMissileStrikeMode = false;
     mLevelSwapIntervalSec = 5;
 }
 
@@ -1337,6 +1338,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
     bool multiFrog = false;
     bool nonStop = false;
     bool levelSwap = false;
+    bool missileStrike = false;
     int levelSwapIntervalSec = 5;
     bool bannedColors[MAX_BALL_COLORS];
     bool disabledPowerUps[PowerType_Max];
@@ -1389,6 +1391,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
         multiFrog = dialog->IsMultiFrogSelected();
         nonStop = dialog->IsNonStopSelected();
         levelSwap = dialog->IsLevelSwapSelected();
+        missileStrike = dialog->IsMissileStrikeSelected();
         levelSwapIntervalSec = dialog->GetLevelSwapIntervalSec();
         chainSpeed = dialog->GetChainSpeedMultiplier();
         movingHoleSpeed = dialog->GetMovingHoleSpeed();
@@ -1484,6 +1487,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
             mMultiFrogCount = 4;
         mNonStopMode = nonStop;
         mLevelSwapMode = levelSwap;
+        mMissileStrikeMode = missileStrike;
         mLevelSwapIntervalSec = levelSwapIntervalSec;
         if (mLevelSwapIntervalSec < 1)
             mLevelSwapIntervalSec = 1;

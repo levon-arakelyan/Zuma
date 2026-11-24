@@ -16,6 +16,7 @@ Bullet::Bullet()
     mHitPercent = 0.0f;
     mMergeSpeed = 0.05f;
     mIsKillerBall = false;
+    mMissileStrike = false;
 
     for (int i = 0; i < 3; i++)
     {

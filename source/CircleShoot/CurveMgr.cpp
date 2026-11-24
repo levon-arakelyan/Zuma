@@ -971,6 +971,18 @@ Ball *CurveMgr::CheckBallIntersection(const SexyVector3 &p1, const SexyVector3 &
     return anIntersectBall;
 }
 
+Ball *CurveMgr::FindShootableBallTouching(Bullet *theBullet)
+{
+    for (BallList::iterator anItr = mBallList.begin(); anItr != mBallList.end(); ++anItr)
+    {
+        Ball *aBall = *anItr;
+        if (aBall->GetClearCount() == 0 && aBall->CollidesWithPhysically(theBullet) &&
+            !mWayPointMgr->InTunnel((int)aBall->GetWayPoint()))
+            return aBall;
+    }
+    return NULL;
+}
+
 bool gGotPowerUp[(int)PowerType_Max] = {false, false, false, false};
 
 void CurveMgr::ActivatePower(Ball *theBall)
@@ -2513,7 +2525,7 @@ void CurveMgr::StartClearCount(Ball *theBall)
     }
 }
 
-void CurveMgr::ActivateBomb(Ball *theBall)
+void CurveMgr::ActivateBomb(Ball *theBall, float theScale)
 {
     int aColor = gBallColors[theBall->GetType()];
     int aBallX = theBall->GetX();
@@ -2521,7 +2533,8 @@ void CurveMgr::ActivateBomb(Ball *theBall)
     mBoard->mParticleMgr->AddExplosion(aBallX, aBallY, 0, aColor, 5);
     int v19 = Sexy::IMAGE_EXPLOSION->mWidth / 3;
 
-    for (int i = v19, a6 = 7; i < 100; i += v19, a6 += 4)
+    int aRingReach = (int)(100.0f * theScale);
+    for (int i = v19, a6 = 7; i < aRingReach; i += v19, a6 += 4)
     {
         float v21 = 0.0f;
         do
@@ -2543,19 +2556,32 @@ void CurveMgr::ActivateBomb(Ball *theBall)
         aColor,
         0);
 
+    ClearBallsInBlast(theBall, theScale);
+}
+
+// Clears every ball on this path within the blast, tunnel balls included.
+// theCenter may belong to another path (Missile strike blasts all paths).
+void CurveMgr::ClearBallsInBlast(Ball *theCenter, float theScale)
+{
+    int aColor = gBallColors[theCenter->GetType()];
+
+    // Reach is 2 * (radius + pad); scale the whole reach, not just the pad.
+    int aRadius = theCenter->GetRadius();
+    int aPad = (int)((float)(aRadius + 45) * theScale + 0.5f) - aRadius;
+
     for (BallList::iterator anItr = mBallList.begin(); anItr != mBallList.end(); anItr++)
     {
         Ball *aBall = *anItr;
 
-        if (aBall->GetClearCount() == 0 && aBall->CollidesWithPhysically(theBall, 45))
+        if (aBall->GetClearCount() == 0 && aBall->CollidesWithPhysically(theCenter, aPad))
         {
             if (!mApp->mCombolessMode)
                 aBall->SetComboCount(mBoard->mCurComboCount, mBoard->mCurComboScore);
             mBoard->mNeedComboCount.push_back(aBall);
             StartClearCount(aBall);
             mBoard->mParticleMgr->AddExplosion(
-                theBall->GetX(),
-                theBall->GetY(),
+                theCenter->GetX(),
+                theCenter->GetY(),
                 0,
                 aColor,
                 0);
