@@ -1513,6 +1513,10 @@ int CurveMgr::GetNumInARow(Ball *theBall, int theColor, Ball **theNextEnd, Ball 
     return aCount;
 }
 
+// True while CheckSet clears a combo (chain sucked back): power-ups cleared
+// then play their sound at half volume, alongside the normal destroy sound.
+static bool gClearingCombo = false;
+
 bool CurveMgr::CheckSet(Ball *theBall)
 {
     mHadPowerUp = false;
@@ -1544,6 +1548,7 @@ bool CurveMgr::CheckSet(Ball *theBall)
     Ball *anEndBall = aNextEnd->GetNextBall();
     Ball *aBall = aPrevEnd;
 
+    gClearingCombo = aComboCount > 0;
     while (aBall != anEndBall)
     {
         if (aBall->GetSuckPending())
@@ -1560,6 +1565,7 @@ bool CurveMgr::CheckSet(Ball *theBall)
         aBall->SetGapBonus(0, 0);
         aBall = aBall->GetNextBall();
     }
+    gClearingCombo = false;
 
     DoScoring(theBall, mBoard->mNumCleared, aComboCount, aGapBonus, aNumGaps);
 
@@ -1590,7 +1596,8 @@ bool CurveMgr::CheckSet(Ball *theBall)
     mBoard->mNeedComboCount.clear();
 
     // Normally power clears skip the destroy SFX (power SFX play instead).
-    if (!mHadPowerUp)
+    // In a combo the destroy SFX still plays; the power SFX was played at half volume.
+    if (!mHadPowerUp || aComboCount > 0)
     {
         int *destroySound = &Sexy::SOUND_BALLDESTROYED1;
 
@@ -2520,7 +2527,7 @@ void CurveMgr::StartClearCount(Ball *theBall)
 
     if (theBall->GetPowerTypeWussy() != PowerType_None)
     {
-        mBoard->ActivatePower(theBall);
+        mBoard->ActivatePower(theBall, gClearingCombo ? 0.5 : 1.0);
         mHadPowerUp = true;
     }
 }
@@ -2557,6 +2564,14 @@ void CurveMgr::ActivateBomb(Ball *theBall, float theScale)
         0);
 
     ClearBallsInBlast(theBall, theScale);
+    mBoard->DestroyKillersInBlast(theBall, theScale);
+}
+
+int CurveMgr::GetBlastPad(Ball *theCenter, float theScale)
+{
+    // Reach is 2 * (radius + pad); scale the whole reach, not just the pad.
+    int aRadius = theCenter->GetRadius();
+    return (int)((float)(aRadius + 45) * theScale + 0.5f) - aRadius;
 }
 
 // Clears every ball on this path within the blast, tunnel balls included.
@@ -2565,9 +2580,7 @@ void CurveMgr::ClearBallsInBlast(Ball *theCenter, float theScale)
 {
     int aColor = gBallColors[theCenter->GetType()];
 
-    // Reach is 2 * (radius + pad); scale the whole reach, not just the pad.
-    int aRadius = theCenter->GetRadius();
-    int aPad = (int)((float)(aRadius + 45) * theScale + 0.5f) - aRadius;
+    int aPad = GetBlastPad(theCenter, theScale);
 
     for (BallList::iterator anItr = mBallList.begin(); anItr != mBallList.end(); anItr++)
     {
@@ -2656,6 +2669,17 @@ void CurveMgr::RollBallsIn()
     }
 }
 
+int CurveMgr::GetNumColors()
+{
+    // Same rule AddPendingBall uses to pick new ball colors.
+    int aNumColors = gColorOverride ? gNumColors : mCurveDesc->mNumColors;
+    if (aNumColors < 1)
+        aNumColors = 1;
+    if (aNumColors > MAX_BALL_COLORS)
+        aNumColors = MAX_BALL_COLORS;
+    return aNumColors;
+}
+
 void CurveMgr::ApplyColorShift(const int theMap[MAX_BALL_COLORS])
 {
     if (theMap == NULL)
@@ -2740,16 +2764,22 @@ Bullet *CurveMgr::LaunchKillerBall(float theFlightSec, float theFrogX, float the
 {
     Ball *candidates[512];
     int count = 0;
+    int aLiveCount = 0; // balls not already being cleared
     for (BallList::iterator anItr = mBallList.begin(); anItr != mBallList.end(); ++anItr)
     {
         Ball *aBall = *anItr;
-        if (aBall == NULL || aBall->GetClearCount() != 0 || aBall->GetBullet() != NULL)
+        if (aBall == NULL || aBall->GetClearCount() != 0)
+            continue;
+        ++aLiveCount;
+        if (aBall->GetBullet() != NULL)
             continue;
         if (count < 512)
             candidates[count++] = aBall;
     }
 
-    if (count == 0)
+    // Never take the last ball of a chain: that would empty the path (and can
+    // end the level) while the killer is still in the air.
+    if (count == 0 || aLiveCount <= 1)
         return NULL;
 
     Ball *src = candidates[Sexy::AppRand() % count];

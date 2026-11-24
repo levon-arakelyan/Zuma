@@ -996,6 +996,11 @@ void CircleShootApp::DoModesDialog()
     SetupButton(dialog->mYesButton, 3);
     SetupButton(dialog->mNoButton, 3);
     AddDialog(DialogType_Modes, dialog);
+
+    // Mouse wheel goes to the focused widget, so focus the dialog to let the
+    // wheel scroll the modes list. KillDialog gives focus back to the board
+    // or main menu once the last dialog closes.
+    mWidgetManager->SetFocus(dialog);
 }
 
 void CircleShootApp::DoColorsBanDialog()

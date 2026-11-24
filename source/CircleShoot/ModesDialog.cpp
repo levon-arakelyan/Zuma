@@ -16,6 +16,7 @@
 #include "CircleCommon.h"
 #include "ModesDialog.h"
 #include "Res.h"
+#include "CircleScrollbar.h"
 
 using namespace Sexy;
 
@@ -272,7 +273,7 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
     mModesPane = new ModesPane(this);
 
     mGroupList = new ListWidget(ModesCatalog::kGroupListId, Sexy::FONT_DIALOG, this);
-    mGroupScrollbar = new ScrollbarWidget(ModesCatalog::kGroupListId, mGroupList);
+    mGroupScrollbar = new CircleScrollbar(ModesCatalog::kGroupListId, mGroupList);
     mGroupList->mScrollbar = mGroupScrollbar;
     mGroupList->mJustify = ListWidget::JUSTIFY_CENTER;
     mGroupList->mItemHeight = ModesCatalog::kGroupItemHeight;
@@ -280,7 +281,7 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
     mGroupList->mDrawOutline = true;
     mGroupScrollbar->SetInvisIfNoScroll(true);
 
-    mModesScrollbar = new ScrollbarWidget(ModesCatalog::kModesScrollbarId, mModesPane);
+    mModesScrollbar = new CircleScrollbar(ModesCatalog::kModesScrollbarId, mModesPane);
     mModesScrollbar->SetInvisIfNoScroll(true);
 
     for (int i = 0; i < ModesCatalog::Mode_Count; i++)
@@ -527,6 +528,18 @@ void ModesDialog::PrepareClose()
     mTooltip = NULL;
 }
 
+// The framework hit-tests a container's children even outside the container,
+// so rows scrolled out of the modes pane would still take clicks (including
+// over the Apply/Cancel row). Only let a widget take clicks while it is fully
+// inside the pane's visible area; otherwise clicks fall through.
+static void SetClickableInPane(Widget *theWidget, int thePaneWidth, int thePaneHeight)
+{
+    theWidget->mMouseVisible =
+        theWidget->mX >= 0 && theWidget->mY >= 0 &&
+        theWidget->mX + theWidget->mWidth <= thePaneWidth &&
+        theWidget->mY + theWidget->mHeight <= thePaneHeight;
+}
+
 void ModesDialog::LayoutModeWidgets()
 {
     if (mModesPane == NULL)
@@ -576,7 +589,28 @@ void ModesDialog::LayoutModeWidgets()
 
         int labelX = x + slot.mCheckbox->mWidth;
         int labelW = FONT_DIALOG->StringWidth(def->label) + ModesCatalog::kLabelHitPadX * 2;
-        slot.mHit->Resize(labelX, y, labelW, ModesCatalog::kLabelHitHeight);
+        // The label hit area is invisible, so clip it to the visible pane
+        // (rows partly scrolled out stay clickable on their visible part).
+        int hitTop = y;
+        int hitBottom = y + ModesCatalog::kLabelHitHeight;
+        if (hitTop < 0)
+            hitTop = 0;
+        if (hitBottom > mModesPane->mHeight)
+            hitBottom = mModesPane->mHeight;
+        if (hitBottom > hitTop)
+        {
+            slot.mHit->Resize(labelX, hitTop, labelW, hitBottom - hitTop);
+            slot.mHit->mMouseVisible = true;
+        }
+        else
+        {
+            slot.mHit->Resize(labelX, y, labelW, ModesCatalog::kLabelHitHeight);
+            slot.mHit->mMouseVisible = false;
+        }
+
+        // The checkbox is drawn from its own top, so it can't be clipped the
+        // same way: it takes clicks only while fully visible.
+        SetClickableInPane(slot.mCheckbox, mModesPane->mWidth, mModesPane->mHeight);
 
         visibleIndex++;
     }
@@ -925,6 +959,12 @@ void ModesDialog::DrawModeLabels(Graphics *g)
     }
 }
 
+void ModesDialog::MouseWheel(int theDelta)
+{
+    if (mModesPane != NULL)
+        mModesPane->MouseWheel(theDelta);
+}
+
 void ModesDialog::ButtonDepress(int theId)
 {
     if (IsModeHitId(theId))
@@ -938,9 +978,14 @@ void ModesDialog::ButtonDepress(int theId)
             return;
         }
 
+        // Clicking the label toggles the box: play the same sound a direct
+        // checkbox click makes (CircleCheckbox's SOUND_BUTTON2).
         Checkbox *checkbox = CheckboxForMode(modeId);
         if (checkbox != NULL && checkbox->mVisible)
+        {
             checkbox->SetChecked(!checkbox->IsChecked());
+            gSexyAppBase->PlaySample(Sexy::SOUND_BUTTON2);
+        }
         return;
     }
 

@@ -369,6 +369,10 @@ void Gun::Draw(Graphics *g)
     int aFrogCount = GetMultiFrogCount();
     bool aUseWedge = aFrogCount > 1;
 
+    // No swap hides the next ball, so don't show it sliding from the back of
+    // the frog into the mouth while reloading; it appears once it's in place.
+    bool aHideReloadBall = app != NULL && app->mNoSwapMode && mState == GunState_Reloading;
+
     if (!aUseWedge)
     {
         if (app != NULL && app->mBaseMinimumMode)
@@ -376,7 +380,7 @@ void Gun::Draw(Graphics *g)
             g->SetColor(Color(0x228B22));
             Sexy::FillCircle(g, mCenterX, mCenterY, 28);
 
-            if (mBullet != NULL)
+            if (mBullet != NULL && !aHideReloadBall)
                 mBullet->Draw(g);
 
             if (mShowNextBall && !app->mNoSwapMode && mNextBullet != NULL && mState != GunState_Reloading)
@@ -425,7 +429,7 @@ void Gun::Draw(Graphics *g)
 
         g->DrawImageRotated(Sexy::IMAGE_SHOOTER_TONGUE, aCornerX + 38, aCornerY + aOff, mAngle, 16, aTongueSomething);
 
-        if (mBullet != NULL)
+        if (mBullet != NULL && !aHideReloadBall)
             mBullet->Draw(g);
 
         if (mShowNextBall && app != NULL && !app->mNoSwapMode &&
@@ -513,7 +517,7 @@ void Gun::Draw(Graphics *g)
         g->DrawImageRotated(slice, mCenterX - kFrogSliceHalf, mCenterY - kFrogSliceHalf,
                             aAngle, kFrogSliceHalf, kFrogSliceHalf);
 
-        if (aChamber != NULL)
+        if (aChamber != NULL && !(aHideReloadBall && aChamber == mBullet))
             aChamber->Draw(g);
 
         if (app == NULL || !app->mBaseMinimumMode)

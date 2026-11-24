@@ -232,6 +232,8 @@ namespace Sexy
 		void ResolveKillerCollisions();
 		void PlayKillerExplosion(float theX, float theY, int theType);
 		void ReleaseKillerBallColor(int theType);
+		void DestroyKillersInBlast(Ball *theCenter, float theScale);
+		void AwardKillerPoints(float theX, float theY, int theType);
 		void ArmMissileStrikeBullet();
 		void DisarmMissileStrikeBullet();
 		bool FireMissileStrikeBomb(int theX, int theY);
@@ -278,7 +280,8 @@ namespace Sexy
 		virtual void ButtonPress(int theId);
 		virtual void ButtonDepress(int theId);
 
-		void ActivatePower(Ball *theBall);
+		// theVolume < 1 plays the power-up sound quieter (used for combo clears).
+		void ActivatePower(Ball *theBall, double theVolume = 1.0);
 		void WaitForLoadingThread();
 		void Reset(bool gameOver, bool isLevelReset = false);
 

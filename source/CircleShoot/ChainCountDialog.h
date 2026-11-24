@@ -3,6 +3,7 @@
 
 #include "CircleDialog.h"
 #include <SexyAppFramework/SliderListener.h>
+#include <SexyAppFramework/CheckboxListener.h>
 
 namespace Sexy
 {
@@ -15,7 +16,9 @@ namespace Sexy
     // Chain count picker: hits needed before chain bonus (1-20), optional disable.
     // Same lifetime pattern as other mode picker dialogs (MovingHole style).
     ///////////////////////////////////////////////////////////////////////////////
-    class ChainCountDialog : public CircleDialog, SliderListener
+    // The disable checkbox and the slider are mutually exclusive: ticking the
+    // checkbox disables the slider; moving the slider unticks the checkbox.
+    class ChainCountDialog : public CircleDialog, SliderListener, CheckboxListener
     {
     public:
         ChainCountDialog(int initialThreshold, bool disableBonus);
@@ -28,6 +31,7 @@ namespace Sexy
         virtual void RemovedFromManager(WidgetManager *theWidgetManager);
 
         virtual void SliderVal(int theId, double theVal);
+        virtual void CheckboxChecked(int theId, bool checked);
         virtual void Draw(Graphics *g);
 
         int GetThreshold() const { return mThreshold; }
@@ -39,6 +43,7 @@ namespace Sexy
 
     private:
         void SetThresholdFromSlider(double theVal);
+        void UpdateExclusiveState(bool fromSlider);
         static int SnapThreshold(float theValue);
         static double ThresholdToSlider(int theThreshold);
     };

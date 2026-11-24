@@ -135,6 +135,9 @@
 				RelativePath="CircleCheckbox.cpp">
 			</File>
 			<File
+				RelativePath="CircleScrollbar.cpp">
+			</File>
+			<File
 				RelativePath="CircleCommon.cpp">
 			</File>
 			<File
@@ -245,6 +248,9 @@
 			</File>
 			<File
 				RelativePath="CircleCheckbox.h">
+			</File>
+			<File
+				RelativePath="CircleScrollbar.h">
 			</File>
 			<File
 				RelativePath="CircleCommon.h">

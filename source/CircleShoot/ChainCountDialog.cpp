@@ -79,9 +79,9 @@ ChainCountDialog::ChainCountDialog(int initialThreshold, bool disableBonus)
                                   ChainCountDialogGraphics::kThresholdSliderId, this);
     mThresholdSlider->SetValue(ThresholdToSlider(mThreshold));
 
-    // NULL listener: toggle is local UI only; Apply reads IsChecked().
-    mDisableBonusCheckbox = MakeCheckbox(ChainCountDialogGraphics::kDisableBonusCheckboxId, NULL);
+    mDisableBonusCheckbox = MakeCheckbox(ChainCountDialogGraphics::kDisableBonusCheckboxId, this);
     mDisableBonusCheckbox->mChecked = disableBonus;
+    UpdateExclusiveState(false);
 
     mYesButton->mLabel = ChainCountDialogGraphics::kApplyLabel;
     mNoButton->mLabel = ChainCountDialogGraphics::kCancelLabel;
@@ -96,6 +96,22 @@ ChainCountDialog::~ChainCountDialog()
 bool ChainCountDialog::GetDisableBonus() const
 {
     return mDisableBonusCheckbox != NULL && mDisableBonusCheckbox->IsChecked();
+}
+
+void ChainCountDialog::UpdateExclusiveState(bool fromSlider)
+{
+    if (mDisableBonusCheckbox == NULL || mThresholdSlider == NULL)
+        return;
+
+    if (fromSlider)
+    {
+        if (mDisableBonusCheckbox->IsChecked())
+            mDisableBonusCheckbox->SetChecked(false, false);
+        mThresholdSlider->SetDisabled(false);
+        return;
+    }
+
+    mThresholdSlider->SetDisabled(mDisableBonusCheckbox->IsChecked());
 }
 
 void ChainCountDialog::SetThresholdFromSlider(double theVal)
@@ -147,8 +163,19 @@ void ChainCountDialog::SliderVal(int theId, double theVal)
     if (theId == ChainCountDialogGraphics::kThresholdSliderId)
     {
         SetThresholdFromSlider(theVal);
+        UpdateExclusiveState(true);
         MarkDirty();
     }
+}
+
+void ChainCountDialog::CheckboxChecked(int theId, bool checked)
+{
+    if (theId != ChainCountDialogGraphics::kDisableBonusCheckboxId)
+        return;
+
+    (void)checked;
+    UpdateExclusiveState(false);
+    MarkDirty();
 }
 
 void ChainCountDialog::Draw(Graphics *g)
@@ -156,7 +183,13 @@ void ChainCountDialog::Draw(Graphics *g)
     CircleDialog::Draw(g);
 
     g->SetFont(FONT_DIALOG);
-    g->SetColor(mColors[COLOR_LINES]);
+
+    // Dim the slider label while the bonus is disabled (same dim as Color Shift).
+    Color aNormalColor = mColors[COLOR_LINES];
+    if (GetDisableBonus())
+        g->SetColor(Color(aNormalColor.GetRed(), aNormalColor.GetGreen(), aNormalColor.GetBlue(), 90));
+    else
+        g->SetColor(aNormalColor);
 
     int labelX = GetLeft() - mX;
     int labelY = GetTop() - mY + ChainCountDialogGraphics::kLabelTopOffset + FONT_DIALOG->GetAscent();
@@ -164,5 +197,6 @@ void ChainCountDialog::Draw(Graphics *g)
                                   mThreshold == 1 ? "" : "s"),
                   labelX, labelY);
 
+    g->SetColor(aNormalColor);
     DrawCheckboxText(g, ChainCountDialogGraphics::kDisableBonusLabel, mDisableBonusCheckbox);
 }

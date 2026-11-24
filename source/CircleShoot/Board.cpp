@@ -9,6 +9,8 @@
 #include <SexyAppFramework/WidgetManager.h>
 #include <SexyAppFramework/MemoryImage.h>
 #include <SexyAppFramework/KeyCodes.h>
+#include <SexyAppFramework/SoundManager.h>
+#include <SexyAppFramework/SoundInstance.h>
 
 #include "Ball.h"
 #include "Board.h"
@@ -1498,7 +1500,7 @@ static int GetBoardMultiFrogCount()
 }
 
 static Ball *ComputeAccuracyGuide(Gun *theGun, float theGunAngle, CurveMgr **theCurves, int theNumCurves,
-                                  IntPoint *theGuide, SexyVector3 *theEnd)
+                                  IntPoint *theGuide, SexyVector3 *theEnd, BulletList *theKillers = NULL)
 {
     float anAngle = theGunAngle - (SEXY_PI / 2);
     float dx = sinf(anAngle);
@@ -1531,6 +1533,29 @@ static Ball *ComputeAccuracyGuide(Gun *theGun, float theGunAngle, CurveMgr **the
         Ball *anIntersectBall = theCurves[i]->CheckBallIntersection(g2, v1, t);
         if (anIntersectBall)
             aBall = anIntersectBall;
+    }
+
+    // Killer balls in flight block the shot too, so the guide stops at them.
+    if (theKillers != NULL)
+    {
+        for (BulletList::iterator anItr = theKillers->begin(); anItr != theKillers->end(); ++anItr)
+        {
+            Bullet *aKiller = *anItr;
+            if (!aKiller->IsKillerBall())
+                continue;
+
+            float t2;
+            if (aKiller->Intersects(g1, v1, t2) && t2 > 0.0f && t2 < t)
+            {
+                t = t2;
+                aBall = aKiller;
+            }
+            if (aKiller->Intersects(g2, v1, t2) && t2 > 0.0f && t2 < t)
+            {
+                t = t2;
+                aBall = aKiller;
+            }
+        }
     }
 
     if (aBall == NULL)
@@ -1575,7 +1600,7 @@ void Board::UpdateGuide()
 {
     SexyVector3 aGuide;
     IntPoint aTmpGuide[4];
-    Ball *aBall = ComputeAccuracyGuide(mGun, mGun->GetAngle(), mCurveMgr, mNumCurves, aTmpGuide, &aGuide);
+    Ball *aBall = ComputeAccuracyGuide(mGun, mGun->GetAngle(), mCurveMgr, mNumCurves, aTmpGuide, &aGuide, &mBulletList);
 
     mGuideBall = aBall;
 
@@ -1596,7 +1621,7 @@ void Board::UpdateGuide()
     {
         float aDelta = i * ((SEXY_PI * 2.0f) / (float)aFrogCount);
         ComputeAccuracyGuide(mGun, mGun->GetAngle() + aDelta, mCurveMgr, mNumCurves,
-                             gExtraGuides[gExtraGuideCount], NULL);
+                             gExtraGuides[gExtraGuideCount], NULL, &mBulletList);
         gExtraGuideCount++;
     }
 }
@@ -1721,43 +1746,44 @@ void Board::UpdateColorShift()
     if (mStateCount == 0 || (mStateCount % interval) != 0)
         return;
 
-    int map[MAX_BALL_COLORS];
-    if (app->mColorShiftRandom)
+    // Build a map per path. Random shifts stay within the colors that path
+    // uses (e.g. no white on a 4-color level); a custom map is the player's
+    // choice and is applied as set.
+    for (int c = 0; c < mNumCurves; c++)
     {
-        int order[MAX_BALL_COLORS];
-        for (int i = 0; i < MAX_BALL_COLORS; i++)
-            order[i] = i;
+        int aNumColors = mCurveMgr[c]->GetNumColors();
 
-        for (int i = MAX_BALL_COLORS - 1; i > 0; i--)
-        {
-            int j = Sexy::AppRand() % (i + 1);
-            int tmp = order[i];
-            order[i] = order[j];
-            order[j] = tmp;
-        }
+        int map[MAX_BALL_COLORS];
+        for (int i = 0; i < MAX_BALL_COLORS; i++)
+            map[i] = i;
 
-        for (int i = 0; i < MAX_BALL_COLORS; i++)
-            map[i] = order[i];
-    }
-    else
-    {
-        for (int i = 0; i < MAX_BALL_COLORS; i++)
+        if (app->mColorShiftRandom)
         {
-            if (!app->mColorShiftEnabled[i])
+            // Shuffle only the level's colors among themselves.
+            for (int i = aNumColors - 1; i > 0; i--)
             {
-                map[i] = i;
-                continue;
+                int j = Sexy::AppRand() % (i + 1);
+                int tmp = map[i];
+                map[i] = map[j];
+                map[j] = tmp;
             }
-
-            int dest = app->mColorShiftMap[i];
-            if (dest < 0 || dest >= MAX_BALL_COLORS)
-                dest = (i + 1) % MAX_BALL_COLORS;
-            map[i] = dest;
         }
-    }
+        else
+        {
+            for (int i = 0; i < MAX_BALL_COLORS; i++)
+            {
+                if (!app->mColorShiftEnabled[i])
+                    continue;
 
-    for (int i = 0; i < mNumCurves; i++)
-        mCurveMgr[i]->ApplyColorShift(map);
+                int dest = app->mColorShiftMap[i];
+                if (dest < 0 || dest >= MAX_BALL_COLORS)
+                    dest = (i + 1) % MAX_BALL_COLORS;
+                map[i] = dest;
+            }
+        }
+
+        mCurveMgr[c]->ApplyColorShift(map);
+    }
 }
 
 void Board::UpdateInvisible()
@@ -1842,6 +1868,52 @@ void Board::ReleaseKillerBallColor(int theType)
         mBallColorMap.erase(anItr);
 }
 
+// Points for taking a killer ball down (by matching shot or bomb blast).
+static const int kKillerBallPoints = 100;
+
+void Board::AwardKillerPoints(float theX, float theY, int theType)
+{
+    if (theType < 0 || theType >= MAX_BALL_COLORS)
+        theType = 0;
+
+    // Same text color the normal score popups use for this ball color.
+    FloatingTextHelper aFloat;
+    aFloat.AddText(StrFormat("+%d", kKillerBallPoints), Sexy::FONT_FLOAT_ID, Sexy::gTextBallColors[theType]);
+    aFloat.AddToMgr(mParticleMgr, (int)(theX + 0.5f), (int)(theY + 0.5f));
+    IncScore(kKillerBallPoints);
+}
+
+// A bomb (power-up or Missile strike) also destroys killer balls in its reach.
+// Only killers are erased, so an iterator the caller holds on a player shot stays valid.
+void Board::DestroyKillersInBlast(Ball *theCenter, float theScale)
+{
+    int aPad = CurveMgr::GetBlastPad(theCenter, theScale);
+
+    for (BulletList::iterator anItr = mBulletList.begin(); anItr != mBulletList.end();)
+    {
+        Bullet *aKiller = *anItr;
+        if (!aKiller->IsKillerBall() || !aKiller->CollidesWithPhysically(theCenter, aPad))
+        {
+            ++anItr;
+            continue;
+        }
+
+        int aType = aKiller->GetType();
+        float aX = aKiller->GetX();
+        float aY = aKiller->GetY();
+        int aColor = Sexy::gBallColors[aType];
+
+        // The bomb already plays the big blast and sound; add a small burst here.
+        mParticleMgr->AddExplosion((int)(aX + 0.5f), (int)(aY + 0.5f), 0, aColor, 5);
+        mParticleMgr->AddExplosion((int)(aX + 0.5f), (int)(aY + 0.5f), 0, aColor, 0);
+
+        delete aKiller;
+        anItr = mBulletList.erase(anItr);
+        ReleaseKillerBallColor(aType);
+        AwardKillerPoints(aX, aY, aType);
+    }
+}
+
 void Board::ResolveKillerCollisions()
 {
     for (BulletList::iterator aShotItr = mBulletList.begin(); aShotItr != mBulletList.end();)
@@ -1881,6 +1953,7 @@ void Board::ResolveKillerCollisions()
                 delete aShot;
                 aShotItr = mBulletList.erase(aShotItr);
                 ReleaseKillerBallColor(aType);
+                AwardKillerPoints((float)aX, (float)aY, aType);
                 destroyed = true;
                 break;
             }
@@ -2836,7 +2909,23 @@ void Board::ButtonDepress(int theId)
     }
 }
 
-void Board::ActivatePower(Ball *theBall)
+static void PlayPowerSample(CircleShootApp *theApp, int theSound, double theVolume)
+{
+    if (theVolume >= 1.0)
+    {
+        theApp->PlaySample(theSound);
+        return;
+    }
+
+    SoundInstance *aSound = theApp->mSoundManager->GetSoundInstance(theSound);
+    if (aSound != NULL)
+    {
+        aSound->SetVolume(theVolume);
+        aSound->Play(false, true);
+    }
+}
+
+void Board::ActivatePower(Ball *theBall, double theVolume)
 {
     switch (theBall->GetPowerTypeWussy())
     {
@@ -2846,18 +2935,18 @@ void Board::ActivatePower(Ball *theBall)
         if (aTicks - mLastExplosionTick > 250)
         {
             mLastExplosionTick = aTicks;
-            mApp->PlaySample(Sexy::SOUND_EXPLODE);
+            PlayPowerSample(mApp, Sexy::SOUND_EXPLODE, theVolume);
         }
         break;
     }
     case PowerType_MoveBackwards:
-        mApp->PlaySample(Sexy::SOUND_BACKWARDS_BALL);
+        PlayPowerSample(mApp, Sexy::SOUND_BACKWARDS_BALL, theVolume);
         break;
     case PowerType_SlowDown:
-        mApp->PlaySample(Sexy::SOUND_SLOWDOWN_BALL);
+        PlayPowerSample(mApp, Sexy::SOUND_SLOWDOWN_BALL, theVolume);
         break;
     case PowerType_Accuracy:
-        mApp->PlaySample(Sexy::SOUND_ACCURACY_BALL);
+        PlayPowerSample(mApp, Sexy::SOUND_ACCURACY_BALL, theVolume);
         mAccuracyCount = 2000;
         DoAccuracy(true);
         break;
@@ -3320,19 +3409,15 @@ void Board::LoadGame(Buffer &theBuffer)
         aReader.ReadString(aLevelString);
         int aScore = aReader.ReadLong();
 
-        // Modes must survive quit/continue or moving-hole state desyncs.
-        bool movingHoleMode = false;
-        int movingHoleSpeed = 20;
+        // The save stores the Moving hole settings, but the current Modes menu
+        // choice wins (like every other mode): turning the mode off and then
+        // continuing must not switch it back on. Read the values only to keep
+        // the file format. The hole's position is restored below and is ignored
+        // when the mode is off.
         if (version >= 7)
         {
-            movingHoleMode = aReader.ReadBool();
-            movingHoleSpeed = (int)aReader.ReadLong();
-            if (movingHoleSpeed < 0)
-                movingHoleSpeed = 0;
-            if (movingHoleSpeed > 100)
-                movingHoleSpeed = 100;
-            mApp->mMovingHoleMode = movingHoleMode;
-            mApp->mMovingHoleSpeed = movingHoleSpeed;
+            aReader.ReadBool();  // saved Moving hole on/off
+            aReader.ReadLong();  // saved Moving hole speed
         }
 
         aReader.ReadString(mPracticeBoard);

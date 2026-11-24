@@ -113,6 +113,9 @@ namespace Sexy
         virtual void ButtonMouseMove(int theId, int theX, int theY);
         virtual void ButtonDepress(int theId);
         virtual void Draw(Graphics *g);
+        // Wheel events go to the focused widget; the dialog takes focus while
+        // open and passes the wheel on to the scrolling modes list.
+        virtual void MouseWheel(int theDelta);
 
         bool IsColorsBanSelected() const;
         bool IsUnpoweredSelected() const;

@@ -155,6 +155,7 @@ namespace Sexy
 		// Bomb blast centered on theBall; theScale multiplies the blast reach.
 		void ActivateScaledBomb(Ball *theBall, float theScale) { ActivateBomb(theBall, theScale); }
 		void ClearBallsInBlast(Ball *theCenter, float theScale);
+		static int GetBlastPad(Ball *theCenter, float theScale);
 
 		void ActivatePower(Ball *theBall);
 
@@ -178,6 +179,7 @@ namespace Sexy
 		bool HasReachedCruisingSpeed();
 		void AddPowerUp(PowerType thePower);
 		void ApplyColorShift(const int theMap[MAX_BALL_COLORS]);
+		int GetNumColors(); // colors this path's balls are drawn from (0..n-1)
 		void ApplyInvisible(int theFrames, int thePercent);
 		Bullet *LaunchKillerBall(float theFlightSec, float theFrogX, float theFrogY);
 

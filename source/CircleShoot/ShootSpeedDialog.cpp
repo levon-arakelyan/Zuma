@@ -200,10 +200,13 @@ void ShootSpeedDialog::Draw(Graphics *g)
     CircleDialog::Draw(g);
 
     g->SetFont(FONT_DIALOG);
+
+    // Dim the speed label while Instant is on (same dim as Color Shift).
+    Color aNormalColor = mColors[COLOR_LINES];
     if (GetInstant())
-        g->SetColor(Color(120, 130, 90));
+        g->SetColor(Color(aNormalColor.GetRed(), aNormalColor.GetGreen(), aNormalColor.GetBlue(), 90));
     else
-        g->SetColor(mColors[COLOR_LINES]);
+        g->SetColor(aNormalColor);
 
     int labelX = GetLeft() - mX;
     int labelY = GetTop() - mY + ShootSpeedDialogGraphics::kLabelTopOffset + FONT_DIALOG->GetAscent();

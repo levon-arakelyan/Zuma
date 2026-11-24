@@ -8,6 +8,7 @@ add_executable(Zuma WIN32
     Bullet.cpp
     CircleButton.cpp
     CircleCheckbox.cpp
+    CircleScrollbar.cpp
     CircleCommon.cpp
     CircleDialog.cpp
     CircleShootApp.cpp

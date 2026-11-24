@@ -1155,8 +1155,27 @@ void TransitionMgr::UpdateBonus()
 {
     if (GetCircleShootApp()->mAutoAdvanceMode)
     {
-        // Skip the per-level results modal; advance immediately.
         mBoard->mScoreDisplay = mBoard->mScore;
+
+        // Last stage of the adventure cleared: end the game the way the normal
+        // flow does after the final temple (results, then the end credits),
+        // instead of wrapping around to 1-1. Mirrors Board::ButtonDepress.
+        bool aStageDone = mBoard->mNextLevelDesc->mStage != mBoard->mLevelDesc->mStage;
+        if (aStageDone && mBoard->mLevelDesc->mStage + 1 == 13 &&
+            !mBoard->IsPracticeMode() && !mBoard->mIsEndless)
+        {
+            mState = TransitionState_None;
+            mBoard->mIsWinning = true;
+            mBoard->mApp->DoStatsDialog(true, true);
+            if (!mBoard->mApp->mProfile->mHasWon)
+            {
+                mBoard->mApp->mProfile->mHasWon = true;
+                mBoard->mApp->SaveProfile();
+            }
+            return;
+        }
+
+        // Skip the per-level results modal; advance immediately.
         mBoard->Reset(false, false);
         return;
     }
