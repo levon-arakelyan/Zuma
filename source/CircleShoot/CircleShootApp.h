@@ -101,6 +101,9 @@ namespace Sexy
         bool mNonStopMode;           // hole-side chain segments keep rolling across gaps
         bool mLevelSwapMode;
         bool mMissileStrikeMode;            // aim button fires a big bomb shot
+        bool mMultiGameMode;         // several copies of the level played at once
+        int mMultiGameCount;         // 1-4 copies when multi game is on
+        bool mMuteGameSfx;           // set while a background Multi game copy updates
         int mLevelSwapIntervalSec;   // 1-60: seconds between board swaps
 
         bool IsColorBanned(int theColor) const;
@@ -118,6 +121,9 @@ namespace Sexy
 
         virtual Dialog *NewDialog(int theDialogId, bool isModal, const SexyString &theDialogHeader, const SexyString &theDialogLines, const SexyString &theDialogFooter, int theButtonMode);
         virtual bool KillDialog(int theDialogId);
+        // Silenced while a background Multi game copy is being updated.
+        virtual void PlaySample(int theSoundNum);
+        virtual void PlaySample(int theSoundNum, int thePan);
 
         virtual void GotFocus();
         virtual void LostFocus();
@@ -163,6 +169,7 @@ namespace Sexy
         void DoShootSpeedDialog();
         void DoMultiFrogDialog();
         void DoLevelSwapDialog();
+        void DoMultiGameDialog();
         void DoModeHelpDialog(const std::string &theTitle, const std::string &theDescription);
         void DoConfirmContinueDialog(const std::string &theVerboseLevelString, const std::string &theDisplayName, int theScore);
         void DoGetReadyDialog();
@@ -195,6 +202,7 @@ namespace Sexy
         void FinishShootSpeedDialog(bool apply);
         void FinishMultiFrogDialog(bool apply);
         void FinishLevelSwapDialog(bool apply);
+        void FinishMultiGameDialog(bool apply);
         void FinishConfirmMainMenuDialog(bool mainMenu);
         void FinishStatsDialog(bool);
 

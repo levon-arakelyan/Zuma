@@ -31,6 +31,7 @@
 #include "KillerBallDialog.h"
 #include "ShootSpeedDialog.h"
 #include "MultiFrogDialog.h"
+#include "MultiGameDialog.h"
 #include "LevelSwapDialog.h"
 #include "ConfirmContinueDialog.h"
 #include "StatsDialog.h"
@@ -136,6 +137,9 @@ CircleShootApp::CircleShootApp()
     mNonStopMode = false;
     mLevelSwapMode = false;
     mMissileStrikeMode = false;
+    mMultiGameMode = false;
+    mMultiGameCount = 2;
+    mMuteGameSfx = false;
     mLevelSwapIntervalSec = 5;
 }
 
@@ -1186,6 +1190,33 @@ void CircleShootApp::DoMultiFrogDialog()
     AddDialog(DialogType_MultiFrog, dialog);
 }
 
+void CircleShootApp::DoMultiGameDialog()
+{
+    if (GetDialog(DialogType_MultiGame) != NULL)
+        return;
+
+    ModesDialog *modes = (ModesDialog *)GetDialog(DialogType_Modes);
+    int count = (modes != NULL) ? modes->GetMultiGameCount() : mMultiGameCount;
+
+    Dialog *dialog = new MultiGameDialog(count);
+    SetupDialog(dialog, 400);
+    AddDialog(DialogType_MultiGame, dialog);
+}
+
+void CircleShootApp::PlaySample(int theSoundNum)
+{
+    if (mMuteGameSfx)
+        return;
+    SexyAppBase::PlaySample(theSoundNum);
+}
+
+void CircleShootApp::PlaySample(int theSoundNum, int thePan)
+{
+    if (mMuteGameSfx)
+        return;
+    SexyAppBase::PlaySample(theSoundNum, thePan);
+}
+
 void CircleShootApp::DoLevelSwapDialog()
 {
     if (GetDialog(DialogType_LevelSwap) != NULL)
@@ -1344,6 +1375,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
     bool nonStop = false;
     bool levelSwap = false;
     bool missileStrike = false;
+    bool multiGame = false;
     int levelSwapIntervalSec = 5;
     bool bannedColors[MAX_BALL_COLORS];
     bool disabledPowerUps[PowerType_Max];
@@ -1365,6 +1397,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
     bool colorsBanRandom = false;
     int colorsBanRandomCount = 1;
     int multiFrogCount = 2;
+    int multiGameCount = 2;
     for (int i = 0; i < MAX_BALL_COLORS; i++)
     {
         colorShiftMap[i] = (i + 1) % MAX_BALL_COLORS;
@@ -1397,6 +1430,8 @@ void CircleShootApp::FinishModesDialog(bool apply)
         nonStop = dialog->IsNonStopSelected();
         levelSwap = dialog->IsLevelSwapSelected();
         missileStrike = dialog->IsMissileStrikeSelected();
+        multiGame = dialog->IsMultiGameSelected();
+        multiGameCount = dialog->GetMultiGameCount();
         levelSwapIntervalSec = dialog->GetLevelSwapIntervalSec();
         chainSpeed = dialog->GetChainSpeedMultiplier();
         movingHoleSpeed = dialog->GetMovingHoleSpeed();
@@ -1430,6 +1465,7 @@ void CircleShootApp::FinishModesDialog(bool apply)
     KillDialog(DialogType_ShootSpeed);
     KillDialog(DialogType_MultiFrog);
     KillDialog(DialogType_LevelSwap);
+    KillDialog(DialogType_MultiGame);
     KillDialog(DialogType_ModeHelp);
     KillDialog(DialogType_Modes);
 
@@ -1493,6 +1529,18 @@ void CircleShootApp::FinishModesDialog(bool apply)
         mNonStopMode = nonStop;
         mLevelSwapMode = levelSwap;
         mMissileStrikeMode = missileStrike;
+        mMultiGameMode = multiGame;
+        mMultiGameCount = multiGameCount;
+        if (mMultiGameCount < 1)
+            mMultiGameCount = 1;
+        if (mMultiGameCount > 4)
+            mMultiGameCount = 4;
+        // Multi game can't run together with Level swap or Multi-frog.
+        if (mMultiGameMode)
+        {
+            mLevelSwapMode = false;
+            mMultiFrogMode = false;
+        }
         mLevelSwapIntervalSec = levelSwapIntervalSec;
         if (mLevelSwapIntervalSec < 1)
             mLevelSwapIntervalSec = 1;
@@ -1713,6 +1761,22 @@ void CircleShootApp::FinishMultiFrogDialog(bool apply)
     KillDialog(DialogType_MultiFrog);
 }
 
+void CircleShootApp::FinishMultiGameDialog(bool apply)
+{
+    MultiGameDialog *gameDialog = (MultiGameDialog *)GetDialog(DialogType_MultiGame);
+    ModesDialog *modesDialog = (ModesDialog *)GetDialog(DialogType_Modes);
+    if (gameDialog == NULL)
+        return;
+
+    if (apply && modesDialog != NULL)
+    {
+        modesDialog->SetMultiGameCount(gameDialog->GetGameCount());
+        modesDialog->SetMultiGameSelected(true);
+    }
+
+    KillDialog(DialogType_MultiGame);
+}
+
 void CircleShootApp::FinishLevelSwapDialog(bool apply)
 {
     LevelSwapDialog *swapDialog = (LevelSwapDialog *)GetDialog(DialogType_LevelSwap);
@@ -1923,6 +1987,9 @@ bool CircleShootApp::CheckYesNoButton(int theButton)
         case 2037:
             FinishLevelSwapDialog(true);
             return true;
+        case 2038:
+            FinishMultiGameDialog(true);
+            return true;
         default:
             KillDialog(theButton - 2000);
             return true;
@@ -2005,6 +2072,9 @@ bool CircleShootApp::CheckYesNoButton(int theButton)
             return true;
         case 3036:
             FinishMultiFrogDialog(false);
+            return true;
+        case 3038:
+            FinishMultiGameDialog(false);
             return true;
         case 3037:
             FinishLevelSwapDialog(false);

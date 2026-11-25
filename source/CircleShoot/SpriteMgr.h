@@ -120,6 +120,26 @@ public:
 	void PlaceHole(int theCurveNum, int theX, int theY, float theRotation, int thePriority = 0);
 	void MoveHole(int theCurveNum, int theX, int theY, float theRotation, int thePriority = 0);
 	void ClearHoleFlashes();
+
+	// Multi game: each copy of the level keeps its own hole positions,
+	// open amount and flashes while the background art is shared.
+	struct HoleState
+	{
+		int mNumHoles;
+		int mHoleMappings[3];
+		int mx[3], my[3];
+		int mFrame[3];
+		int mTotalBrightness[3];
+		float mRotation[3];
+		int mDrawPriority[3];
+		float mPercentOpen[3][3];
+		int mBrightness[3][3];
+		std::list<int> mFlashUpdateCount;
+		std::list<int> mFlashCurveNum;
+		HoleState() : mNumHoles(-1) { }
+	};
+	void GetHoleState(HoleState &theState) const;
+	void SetHoleState(const HoleState &theState);
 	void AddHoleFlash(int theCurveNum, int theStagger);
 	void Update();
 

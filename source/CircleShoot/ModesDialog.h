@@ -54,6 +54,7 @@ namespace Sexy
             Mode_NonStop,
             Mode_LevelSwap,
             Mode_MissileStrike,
+            Mode_MultiGame,
             Mode_Count
         };
     }
@@ -137,6 +138,7 @@ namespace Sexy
         bool IsNonStopSelected() const;
         bool IsLevelSwapSelected() const;
         bool IsMissileStrikeSelected() const;
+        bool IsMultiGameSelected() const;
 
         int GetLevelSwapIntervalSec() const;
         void SetLevelSwapIntervalSec(int sec);
@@ -203,6 +205,9 @@ namespace Sexy
         void SetMultiFrogSelected(bool selected);
         void SetNonStopSelected(bool selected);
         void SetMissileStrikeSelected(bool selected);
+        int GetMultiGameCount() const;
+        void SetMultiGameCount(int theCount);
+        void SetMultiGameSelected(bool selected);
 
         void PrepareClose();
 
@@ -227,6 +232,7 @@ namespace Sexy
         Checkbox *mNonStopCheckbox;
         Checkbox *mLevelSwapCheckbox;
         Checkbox *mMissileStrikeCheckbox;
+        Checkbox *mMultiGameCheckbox;
 
         ModeWidgetSlot mModeSlots[ModesCatalog::Mode_Count];
 
@@ -254,6 +260,7 @@ namespace Sexy
         float mPendingShootSpeedMultiplier;
         bool mPendingShootSpeedInstant;
         int mPendingMultiFrogCount;
+        int mPendingMultiGameCount;
         int mPendingLevelSwapIntervalSec;
         bool mPendingColorsBanRandom;
         int mPendingColorsBanRandomCount;
@@ -276,6 +283,8 @@ namespace Sexy
         bool IsModeHitId(int theId) const;
         ModesCatalog::ModeId ModeIdFromHitId(int theId) const;
         Checkbox *CheckboxForMode(ModesCatalog::ModeId theId) const;
+        // Multi game excludes Level swap and Multi-frog: untick the others.
+        void EnforceModeExclusion(ModesCatalog::ModeId theCheckedMode);
     };
 };
 

@@ -11,6 +11,7 @@
 #include <SexyAppFramework/KeyCodes.h>
 #include <SexyAppFramework/SoundManager.h>
 #include <SexyAppFramework/SoundInstance.h>
+#include <SexyAppFramework/MusicInterface.h>
 
 #include "Ball.h"
 #include "Board.h"
@@ -191,11 +192,23 @@ Board::Board(CircleShootApp *theApp)
     mMissileStrikeArmedBullet = NULL;
     mMissileStrikeArmedOldPower = PowerType_None;
     mStrikeShakeTicks = 0;
+    mMultiOwnLevelDesc = NULL;
+    mStoppedAdding = false;
+    mMultiCount = 1;
+    mMultiLoaded = 0;
+    mMultiView = 0;
+    mMultiSwitchTicks = 0;
+    mMultiSwitchTarget = 0;
+    mMultiBackground = false;
+    mMultiEndRequest = -1;
+    for (int i = 0; i < MAX_MULTI_GAMES; i++)
+        mMultiDanger[i] = false;
 }
 
 Board::~Board()
 {
     WaitForLoadingThread();
+    MultiDestroyExtras();
     DeleteBullets();
     for (int i = 0; i < MAX_CURVES; i++)
     {
@@ -210,6 +223,7 @@ Board::~Board()
     delete mGun;
     delete mLevelDesc;
     delete mNextLevelDesc;
+    delete mMultiOwnLevelDesc;
     delete mMenuButton;
     delete mContinueButton;
     delete mOverlayWidget;
@@ -333,6 +347,8 @@ void Board::StartLevel()
         mLevelSwapCooldown = LevelSwapIntervalTicks();
     else
         mLevelSwapCooldown = -1;
+
+    MultiStartLevelCopies();
 }
 
 void Board::SetLosing()
@@ -476,6 +492,14 @@ void Board::CheckEndConditions()
 {
     if (mGameState != GameState_Playing)
         return;
+
+    // Multi game: a copy updating in the background only reports a loss or
+    // win; MultiUpdatePlaying then shows that copy and acts on it.
+    if (mMultiBackground)
+    {
+        MultiCheckBackgroundEnd();
+        return;
+    }
 
     // Apply after the bullet loop so SetLosing cannot invalidate those iterators.
     if (mKillerHitFrog)
@@ -1290,6 +1314,586 @@ bool Board::UpdateLevelSwap()
     return false;
 }
 
+///////////////////////////////////////////////////////////////////////////////
+// Multi game
+///////////////////////////////////////////////////////////////////////////////
+namespace
+{
+    const int kMultiSwitchTicks = 50; // 0.5 s: fade to black, switch, fade back
+    const int kMultiSwitchHalf = kMultiSwitchTicks / 2;
+}
+
+Board::MultiInstance::MultiInstance()
+{
+    for (int i = 0; i < MAX_CURVES; i++)
+        mCurveMgr[i] = NULL;
+    mOwnLevelDesc = NULL;
+    mGun = NULL;
+    mParticleMgr = NULL;
+    mSoundMgr = NULL;
+    mCurTreasure = NULL;
+    mCurTreasureNum = 0;
+    mTreasureEndFrame = 0;
+    mTreasureZoomX = 0;
+    mTreasureZoomY = 0;
+    mTreasureZoomFrame = 0;
+    mGuideBall = NULL;
+    mShowGuide = false;
+    mDoGuide = false;
+    mRecalcGuide = false;
+    mAccuracyCount = 0;
+    mNumCleared = 0;
+    mClearedXSum = 0;
+    mClearedYSum = 0;
+    mCurComboCount = 0;
+    mCurComboScore = 0;
+    mNumClearsInARow = 0;
+    mCurInARowBonus = 0;
+    mLevelBeginning = false;
+    mLevelEndFrame = 0;
+    mKillerBallCooldown = 0;
+    mKillerHitFrog = false;
+    mStoppedAdding = false;
+}
+
+// Swap every per-copy field between the Board and theSlot.
+void Board::MultiSwapLoaded(MultiInstance &s)
+{
+    for (int i = 0; i < MAX_CURVES; i++)
+        std::swap(mCurveMgr[i], s.mCurveMgr[i]);
+    std::swap(mMultiOwnLevelDesc, s.mOwnLevelDesc);
+    std::swap(mGun, s.mGun);
+    std::swap(mParticleMgr, s.mParticleMgr);
+    std::swap(mSoundMgr, s.mSoundMgr);
+    mBulletList.swap(s.mBulletList);
+    mBallColorMap.swap(s.mBallColorMap);
+    mNeedComboCount.swap(s.mNeedComboCount);
+    std::swap(mCurTreasure, s.mCurTreasure);
+    std::swap(mCurTreasureNum, s.mCurTreasureNum);
+    std::swap(mTreasureEndFrame, s.mTreasureEndFrame);
+    std::swap(mTreasureZoomX, s.mTreasureZoomX);
+    std::swap(mTreasureZoomY, s.mTreasureZoomY);
+    std::swap(mTreasureZoomFrame, s.mTreasureZoomFrame);
+    for (int i = 0; i < 4; i++)
+        std::swap(mGuide[i], s.mGuide[i]);
+    std::swap(mGuideCenter, s.mGuideCenter);
+    std::swap(mGuideBall, s.mGuideBall);
+    std::swap(mShowGuide, s.mShowGuide);
+    std::swap(mDoGuide, s.mDoGuide);
+    std::swap(mRecalcGuide, s.mRecalcGuide);
+    std::swap(mAccuracyCount, s.mAccuracyCount);
+    std::swap(mNumCleared, s.mNumCleared);
+    std::swap(mClearedXSum, s.mClearedXSum);
+    std::swap(mClearedYSum, s.mClearedYSum);
+    std::swap(mCurComboCount, s.mCurComboCount);
+    std::swap(mCurComboScore, s.mCurComboScore);
+    std::swap(mNumClearsInARow, s.mNumClearsInARow);
+    std::swap(mCurInARowBonus, s.mCurInARowBonus);
+    std::swap(mLevelBeginning, s.mLevelBeginning);
+    std::swap(mLevelEndFrame, s.mLevelEndFrame);
+    std::swap(mKillerBallCooldown, s.mKillerBallCooldown);
+    std::swap(mKillerHitFrog, s.mKillerHitFrog);
+    std::swap(mStoppedAdding, s.mStoppedAdding);
+}
+
+// Make copy theIndex the loaded one (its state moves into the Board's fields).
+void Board::MultiExchange(int theIndex)
+{
+    if (theIndex == mMultiLoaded || theIndex < 0 || theIndex >= MAX_MULTI_GAMES)
+        return;
+
+    MultiInstance &aOld = mMulti[mMultiLoaded];
+    mSpriteMgr->GetHoleState(aOld.mHoles);
+    MultiSwapLoaded(aOld); // loaded copy -> its slot
+
+    MultiInstance &aNew = mMulti[theIndex];
+    MultiSwapLoaded(aNew); // slot -> Board
+    mSpriteMgr->SetHoleState(aNew.mHoles);
+
+    mMultiLoaded = theIndex;
+}
+
+// Free every copy that isn't loaded (slots of the loaded copy are empty).
+void Board::MultiDestroyExtras()
+{
+    for (int k = 0; k < MAX_MULTI_GAMES; k++)
+    {
+        if (k == mMultiLoaded)
+            continue;
+
+        MultiInstance &s = mMulti[k];
+        for (BulletList::iterator anItr = s.mBulletList.begin(); anItr != s.mBulletList.end(); ++anItr)
+            delete *anItr;
+        s.mBulletList.clear();
+        s.mBallColorMap.clear();
+        s.mNeedComboCount.clear();
+
+        for (int i = 0; i < MAX_CURVES; i++)
+        {
+            delete s.mCurveMgr[i];
+            s.mCurveMgr[i] = NULL;
+        }
+        delete s.mOwnLevelDesc;
+        delete s.mGun;
+        delete s.mParticleMgr;
+        delete s.mSoundMgr;
+
+        s = MultiInstance();
+    }
+}
+
+// Called at the end of Reset (copy 1 loaded and freshly set up): build
+// copies 2..N of the same level, each with its own paths, chain and frog.
+void Board::MultiRebuildExtras()
+{
+    MultiDestroyExtras();
+
+    mMultiCount = 1;
+    mMultiView = 0;
+    mMultiEndRequest = -1;
+    for (int i = 0; i < MAX_MULTI_GAMES; i++)
+        mMultiDanger[i] = false;
+    mSoundMgr->SetSilent(false);
+
+    if (!mApp->mMultiGameMode)
+        return;
+
+    int aCount = mApp->mMultiGameCount;
+    if (aCount < 1)
+        aCount = 1;
+    if (aCount > MAX_MULTI_GAMES)
+        aCount = MAX_MULTI_GAMES;
+    if (aCount <= 1)
+        return;
+
+    // Holes as copy 1 left them; SetupLevel would add duplicates otherwise.
+    SpriteMgr::HoleState aBaseHoles;
+    mSpriteMgr->GetHoleState(aBaseHoles);
+
+    for (int k = 1; k < aCount; k++)
+    {
+        MultiInstance &s = mMulti[k];
+        s = MultiInstance();
+        s.mOwnLevelDesc = new LevelDesc(*mLevelDesc);
+        for (int i = 0; i < MAX_CURVES; i++)
+            s.mCurveMgr[i] = new CurveMgr(this);
+        s.mGun = new Gun();
+        s.mParticleMgr = new ParticleMgr(this);
+        s.mSoundMgr = new SoundMgr();
+        s.mSoundMgr->SetSilent(true);
+        s.mHoles = aBaseHoles;
+
+        // Set the copy up while it is loaded, so its balls register in its
+        // own color map and its paths use its own level data.
+        MultiExchange(k);
+        for (int i = 0; i < MAX_CURVES; i++)
+            mCurveMgr[i]->SetupLevel(mMultiOwnLevelDesc, mSpriteMgr, i, MirrorType_None);
+        mSpriteMgr->SetHoleState(aBaseHoles);
+
+        mGun->SetFireSpeed(mLevelDesc->mFireSpeed);
+        mGun->SetPos(mLevelDesc->mGunX, mLevelDesc->mGunY);
+        mGun->EmptyBullets();
+        mBallColorMap.clear();
+        for (int i = 0; i < mNumCurves; i++)
+            mCurveMgr[i]->StartLevel();
+
+        MultiExchange(0);
+    }
+
+    mMultiCount = aCount;
+}
+
+// Per-copy part of StartLevel for copies 2..N (copy 1 ran the real StartLevel).
+void Board::MultiStartLevelCopies()
+{
+    if (!IsMultiGameActive())
+        return;
+
+    int aView = mMultiLoaded;
+    for (int k = 0; k < mMultiCount; k++)
+    {
+        if (k == aView)
+            continue;
+
+        MultiExchange(k);
+        mParticleMgr->Clear();
+        mGun->SetFireSpeed(mLevelDesc->mFireSpeed);
+        mGun->SetPos(mLevelDesc->mGunX, mLevelDesc->mGunY);
+        mSoundMgr->PlayLoop(LoopType_RollIn); // silent: no sound
+        mLevelBeginning = true;
+        mKillerHitFrog = false;
+        if (mApp->mKillerBallMode)
+        {
+            float intervalSec = mApp->mKillerBallIntervalSec;
+            if (intervalSec < 2.0f)
+                intervalSec = 2.0f;
+            if (intervalSec > 15.0f)
+                intervalSec = 15.0f;
+            mKillerBallCooldown = (int)(intervalSec * 100.0f + 0.5f);
+            if (mKillerBallCooldown < 1)
+                mKillerBallCooldown = 1;
+        }
+        else
+        {
+            mKillerBallCooldown = 0;
+        }
+    }
+    MultiExchange(aView);
+}
+
+bool Board::MultiLoadedInDanger()
+{
+    for (int i = 0; i < mNumCurves; i++)
+    {
+        if (mCurveMgr[i]->IsInDanger())
+            return true;
+    }
+    return false;
+}
+
+// Same tests as CheckEndConditions, without acting: remember the copy.
+void Board::MultiCheckBackgroundEnd()
+{
+    if (mKillerHitFrog)
+    {
+        mMultiEndRequest = mMultiLoaded;
+        return;
+    }
+
+    for (BulletList::iterator anItr = mBulletList.begin(); anItr != mBulletList.end(); ++anItr)
+    {
+        if (!(*anItr)->IsKillerBall())
+            return; // a shot in flight can still save it
+    }
+    if (mGun->IsFiring())
+        return;
+
+    bool allWinning = true;
+    bool anyLosing = false;
+    for (int i = 0; i < mNumCurves; i++)
+    {
+        if (!mCurveMgr[i]->IsWinning())
+            allWinning = false;
+        if (mCurveMgr[i]->IsLosing())
+            anyLosing = true;
+    }
+
+    if (allWinning || anyLosing)
+        mMultiEndRequest = mMultiLoaded;
+}
+
+// Every frame while playing: update the copies off screen (silently), then
+// the one on screen; if a background copy lost or won, show it and act.
+void Board::MultiUpdatePlaying()
+{
+    int aView = mMultiView;
+    mMultiEndRequest = -1;
+
+    for (int k = 0; k < mMultiCount; k++)
+    {
+        if (k == aView)
+            continue;
+
+        MultiExchange(k);
+        mMultiBackground = true;
+        mApp->mMuteGameSfx = true;
+        UpdatePlaying();
+        mApp->mMuteGameSfx = false;
+        mMultiBackground = false;
+        mMultiDanger[k] = MultiLoadedInDanger();
+    }
+
+    MultiExchange(aView);
+    UpdatePlaying();
+    mMultiDanger[aView] = MultiLoadedInDanger();
+
+    if (mMultiEndRequest >= 0 && mGameState == GameState_Playing)
+    {
+        int aCopy = mMultiEndRequest;
+        mMultiEndRequest = -1;
+        MultiCancelSwitch();
+        MultiSetView(aCopy); // show the copy that lost (or won)
+        CheckEndConditions();
+    }
+}
+
+// Instantly put copy theIndex on screen: its sounds on, the others silent,
+// and the music matching its danger state.
+void Board::MultiSetView(int theIndex)
+{
+    if (theIndex == mMultiView && theIndex == mMultiLoaded)
+        return;
+
+    SetMissileStrikeSelecting(false);
+    mSoundMgr->SetSilent(true);
+    MultiExchange(theIndex);
+    mMultiView = theIndex;
+    mSoundMgr->SetSilent(false);
+    if (mLevelBeginning)
+        mSoundMgr->PlayLoop(LoopType_RollIn);
+
+    // Music for this copy right away (no 5 s debounce: the screen is black).
+    mApp->PlaySong(MultiLoadedInDanger() ? 36 : 0, false, 0.01);
+
+    mRecalcGuide = true;
+    if (mWidgetManager != NULL)
+        MouseMove(mWidgetManager->mLastMouseX, mWidgetManager->mLastMouseY); // new frog aims at the cursor
+    MarkDirty();
+}
+
+void Board::MultiStartSwitch(int theIndex)
+{
+    if (!IsMultiGameActive() || mGameState != GameState_Playing)
+        return;
+    if (theIndex < 0 || theIndex >= mMultiCount || theIndex == mMultiView)
+        return;
+    if (mMultiSwitchTicks > 0)
+        return;
+
+    SetMissileStrikeSelecting(false);
+    mMultiSwitchTarget = theIndex;
+    mMultiSwitchTicks = kMultiSwitchTicks;
+}
+
+// Fade the picture and all audio to black/silence over 0.25 s, switch, then
+// fade back in over 0.25 s. Runs every unpaused tick.
+void Board::MultiUpdateSwitch()
+{
+    if (mMultiSwitchTicks <= 0)
+        return;
+
+    if (mGameState != GameState_Playing || !IsMultiGameActive())
+    {
+        MultiCancelSwitch();
+        return;
+    }
+
+    mMultiSwitchTicks--;
+    if (mMultiSwitchTicks == kMultiSwitchHalf)
+        MultiSetView(mMultiSwitchTarget);
+
+    int aDist = mMultiSwitchTicks - kMultiSwitchHalf;
+    if (aDist < 0)
+        aDist = -aDist;
+    MultiApplyVolume(mMultiSwitchTicks == 0 ? 1.0 : (double)aDist / kMultiSwitchHalf);
+    MarkDirty();
+}
+
+void Board::MultiApplyVolume(double theFactor)
+{
+    if (theFactor >= 1.0)
+    {
+        // Back to the player's settings (also honours a muted app).
+        mApp->SetSfxVolume(mApp->GetSfxVolume());
+        mApp->SetMusicVolume(mApp->GetMusicVolume());
+        return;
+    }
+
+    if (theFactor < 0.0)
+        theFactor = 0.0;
+    if (mApp->mSoundManager != NULL)
+        mApp->mSoundManager->SetVolume(mApp->GetSfxVolume() * theFactor);
+    if (mApp->mMusicInterface != NULL)
+        mApp->mMusicInterface->SetVolume(mApp->GetMusicVolume() * theFactor);
+}
+
+void Board::MultiCancelSwitch()
+{
+    if (mMultiSwitchTicks > 0)
+    {
+        mMultiSwitchTicks = 0;
+        MultiApplyVolume(1.0);
+    }
+}
+
+bool Board::MultiHandleKeyChar(char theChar)
+{
+    if (!IsMultiGameActive())
+        return false;
+
+    char c = toupper(theChar);
+    bool isKey = c == 'A' || c == 'D' || (c >= '1' && c <= '4');
+    if (!isKey)
+        return false;
+
+    if (mGameState == GameState_Playing && mPauseCount == 0 && mDialogCount == 0)
+    {
+        if (c == 'A')
+            MultiStartSwitch((mMultiView + mMultiCount - 1) % mMultiCount);
+        else if (c == 'D')
+            MultiStartSwitch((mMultiView + 1) % mMultiCount);
+        else
+            MultiStartSwitch(c - '1');
+    }
+    return true; // swallow the debug meaning of these keys while the mode is on
+}
+
+// Warning triangle for Multi game, rendered once like the aim icons: each pixel
+// is 4x4 supersampled against the triangle's edges, giving smooth anti-aliased
+// edges, a dark rim and an orange-to-red fill. Drawn tinted for the pulse.
+static MemoryImage *gMultiWarningImage = NULL;
+
+static MemoryImage *GetMultiWarningImage(int theWidth, int theHeight)
+{
+    if (gMultiWarningImage != NULL)
+        return gMultiWarningImage;
+
+    // Triangle corners (pixel units), with a small margin so edges can soften.
+    const float ax = theWidth * 0.5f, ay = 0.75f;              // top
+    const float bx = theWidth - 0.75f, by = theHeight - 0.75f; // bottom right
+    const float cx = 0.75f, cy = theHeight - 0.75f;            // bottom left
+    const float kRim = 2.2f;                                    // dark rim width
+
+    MemoryImage *anImage = new MemoryImage(gSexyAppBase);
+    anImage->Create(theWidth, theHeight);
+    anImage->SetImageMode(true, true);
+    ulong *aBits = anImage->GetBits();
+
+    // Inward distance from a point to edge P->Q (triangle is clockwise on screen).
+    struct Edge
+    {
+        static float Dist(float px, float py, float x0, float y0, float x1, float y1)
+        {
+            float ex = x1 - x0, ey = y1 - y0;
+            float len = sqrtf(ex * ex + ey * ey);
+            return ((px - x0) * ey - (py - y0) * ex) / len * -1.0f;
+        }
+    };
+
+    for (int y = 0; y < theHeight; y++)
+    {
+        for (int x = 0; x < theWidth; x++)
+        {
+            float aSumA = 0.0f, aSumR = 0.0f, aSumG = 0.0f, aSumB = 0.0f;
+            for (int sy = 0; sy < 4; sy++)
+            {
+                for (int sx = 0; sx < 4; sx++)
+                {
+                    float px = x + (sx + 0.5f) / 4.0f;
+                    float py = y + (sy + 0.5f) / 4.0f;
+                    float d0 = Edge::Dist(px, py, ax, ay, bx, by);
+                    float d1 = Edge::Dist(px, py, bx, by, cx, cy);
+                    float d2 = Edge::Dist(px, py, cx, cy, ax, ay);
+                    float d = d0 < d1 ? d0 : d1;
+                    if (d2 < d)
+                        d = d2;
+                    if (d < 0.0f)
+                        continue; // outside
+
+                    float r, gr, b;
+                    if (d < kRim)
+                    {
+                        r = 45.0f; gr = 8.0f; b = 4.0f; // dark rim
+                    }
+                    else
+                    {
+                        // Orange at the top fading to red at the bottom, plus a
+                        // soft highlight along the inner top edges.
+                        float t = (py - ay) / (cy - ay);
+                        r = 255.0f;
+                        gr = 150.0f - 110.0f * t;
+                        b = 30.0f - 10.0f * t;
+                        float aGlow = 1.0f - (d - kRim) / 3.0f;
+                        if (aGlow > 0.0f && d2 < d0 + 0.5f)
+                        {
+                            gr += (230.0f - gr) * aGlow * 0.35f;
+                            b += (160.0f - b) * aGlow * 0.35f;
+                        }
+                    }
+                    aSumA += 1.0f;
+                    aSumR += r;
+                    aSumG += gr;
+                    aSumB += b;
+                }
+            }
+
+            if (aSumA <= 0.0f)
+            {
+                aBits[y * theWidth + x] = 0;
+                continue;
+            }
+
+            ulong a = (ulong)(aSumA / 16.0f * 255.0f + 0.5f);
+            ulong r = (ulong)(aSumR / aSumA + 0.5f);
+            ulong gg = (ulong)(aSumG / aSumA + 0.5f);
+            ulong bb = (ulong)(aSumB / aSumA + 0.5f);
+            aBits[y * theWidth + x] = (a << 24) | (r << 16) | (gg << 8) | bb;
+        }
+    }
+    anImage->BitsChanged();
+    gMultiWarningImage = anImage;
+    return anImage;
+}
+
+// Top right: which copy is on screen, and a warning triangle with the number
+// of every other copy whose chain is near the hole.
+void Board::DrawMultiGameHud(Graphics *g)
+{
+    const int kRight = mWidth - 18;
+    const int kTop = 36;
+    const int kTriW = 30;
+    const int kTriH = 26;
+    const int kGap = 6;
+
+    g->SetFont(Sexy::FONT_DIALOG);
+    std::string aLabel = Sexy::StrFormat("%d/%d", mMultiView + 1, mMultiCount);
+    int aLabelW = Sexy::FONT_DIALOG->StringWidth(aLabel);
+    // Label on top, warning triangles in a row underneath it.
+    int aBaseline = kTop + Sexy::FONT_DIALOG->GetAscent();
+    g->SetColor(Color(0, 0, 0));
+    g->DrawString(aLabel, kRight - aLabelW + 1, aBaseline + 1);
+    g->SetColor(Color(0xD5E520));
+    g->DrawString(aLabel, kRight - aLabelW, aBaseline);
+
+    // Pulse so the warning catches the eye.
+    int aPhase = mStateCount % 60;
+    int aAlpha = 155 + (aPhase < 30 ? aPhase : 60 - aPhase) * 100 / 30;
+
+    // Triangles in a column under the label, right-aligned with it, in copy order.
+    int aTriTop = kTop + Sexy::FONT_DIALOG->GetHeight() + kGap;
+    int x = kRight - kTriW;
+    for (int k = 0; k < mMultiCount; k++)
+    {
+        if (k == mMultiView || !mMultiDanger[k])
+            continue;
+
+        MemoryImage *aTri = GetMultiWarningImage(kTriW, kTriH);
+        bool wasColorize = g->GetColorizeImages();
+        g->SetColorizeImages(true);
+        g->SetColor(Color(255, 255, 255, aAlpha));
+        g->DrawImage(aTri, x, aTriTop);
+        g->SetColorizeImages(wasColorize);
+
+        // Copy number in the lower middle of the triangle, with a shadow.
+        std::string aNum = Sexy::StrFormat("%d", k + 1);
+        int aNumW = Sexy::FONT_DIALOG->StringWidth(aNum);
+        int aNumX = x + (kTriW - aNumW) / 2;
+        int aNumY = aTriTop + kTriH - 5;
+        g->SetColor(Color(60, 0, 0, aAlpha));
+        g->DrawString(aNum, aNumX + 1, aNumY + 1);
+        g->SetColor(Color(255, 255, 255, aAlpha));
+        g->DrawString(aNum, aNumX, aNumY);
+
+        aTriTop += kTriH + kGap;
+    }
+}
+
+void Board::DrawMultiSwitchFade(Graphics *g)
+{
+    if (mMultiSwitchTicks <= 0)
+        return;
+
+    int aDist = mMultiSwitchTicks - kMultiSwitchHalf;
+    if (aDist < 0)
+        aDist = -aDist;
+    int anAlpha = 255 - aDist * 255 / kMultiSwitchHalf;
+    if (anAlpha <= 0)
+        return;
+
+    g->SetColor(Color(0, 0, 0, anAlpha));
+    g->FillRect(0, 0, mWidth, mHeight);
+}
+
 void Board::UpdatePlaying()
 {
     UpdateLevelSwap();
@@ -1326,7 +1930,8 @@ void Board::UpdatePlaying()
         }
     }
 
-    if (!mHaveReachedTarget && mCurBarSize == 256 && mScore >= mScoreTarget)
+    // Shared event: handled by the copy on screen (so its sound isn't muted).
+    if (!mHaveReachedTarget && !mMultiBackground && mCurBarSize == 256 && mScore >= mScoreTarget)
     {
         mBarBlinkCount = 224;
         mFlashCount = 50;
@@ -1339,6 +1944,7 @@ void Board::UpdatePlaying()
         else
         {
             mHaveReachedTarget = true;
+            mStoppedAdding = true;
             for (int i = 0; i < mNumCurves; ++i)
             {
                 mCurveMgr[i]->SetStopAddingBalls(true);
@@ -1356,6 +1962,19 @@ void Board::UpdatePlaying()
         }
     }
 
+    // Multi game: the target is shared, so the other copies stop adding balls
+    // the first time they update after it was reached.
+    if (mHaveReachedTarget && !mStoppedAdding && !mIsEndless)
+    {
+        mStoppedAdding = true;
+        for (int i = 0; i < mNumCurves; ++i)
+        {
+            mCurveMgr[i]->SetStopAddingBalls(true);
+            if (!mDestroyAll)
+                mCurveMgr[i]->DetonateBalls();
+        }
+    }
+
     int aScoreDiff = mScoreTarget - mLevelBeginScore;
     if (aScoreDiff > 0)
     {
@@ -1366,13 +1985,15 @@ void Board::UpdatePlaying()
             {
                 if (mStateCount - 3000 == mLevelEndFrame)
                 {
+                    // Each path's own level data (Multi game copies have their own).
                     for (int i = 0; i < mNumCurves; i++)
                     {
-                        mLevelDesc->mCurveDesc[i].mPowerUpFreq[PowerType_Bomb] = 500;
-                        mLevelDesc->mCurveDesc[i].mPowerUpFreq[PowerType_SlowDown] = 0;
-                        mLevelDesc->mCurveDesc[i].mPowerUpFreq[PowerType_Accuracy] = 0;
-                        mLevelDesc->mCurveDesc[i].mPowerUpFreq[PowerType_MoveBackwards] = 0;
-                        mLevelDesc->mCurveDesc[i].mAccelerationRate = 0.0003;
+                        CurveDesc *aDesc = mCurveMgr[i]->GetCurveDesc();
+                        aDesc->mPowerUpFreq[PowerType_Bomb] = 500;
+                        aDesc->mPowerUpFreq[PowerType_SlowDown] = 0;
+                        aDesc->mPowerUpFreq[PowerType_Accuracy] = 0;
+                        aDesc->mPowerUpFreq[PowerType_MoveBackwards] = 0;
+                        aDesc->mAccelerationRate = 0.0003;
                     }
                 }
             }
@@ -2483,10 +3104,15 @@ void Board::Update()
 
         mStateCount++;
 
+        MultiUpdateSwitch();
+
         switch (mGameState)
         {
         case GameState_Playing:
-            UpdatePlaying();
+            if (IsMultiGameActive())
+                MultiUpdatePlaying();
+            else
+                UpdatePlaying();
             break;
         case GameState_Losing:
             UpdateLosing();
@@ -2571,6 +3197,10 @@ void Board::Draw(Graphics *g)
             DrawAimCrosshair(g, mStrikeMouseX, mStrikeMouseY, 30, Color(255, 70, 50));
         }
     }
+
+    if (IsMultiGameActive() && mGameState == GameState_Playing)
+        DrawMultiGameHud(g);
+    DrawMultiSwitchFade(g);
 }
 
 void Board::MouseMove(int x, int y)
@@ -2626,6 +3256,10 @@ void Board::MouseDown(int x, int y, int theClickCount)
     }
     else if (mPauseUpdateCnt != mUpdateCnt)
     {
+        // Multi game: no shooting while fading to another copy.
+        if (mMultiSwitchTicks > 0 && mGameState == GameState_Playing)
+            return;
+
         if (mMissileStrikeSelecting)
         {
             // Right-click or clicking the button again backs out at no cost.
@@ -2684,6 +3318,10 @@ extern bool gForceStageComplete;
 
 void Board::KeyChar(char theChar)
 {
+    // Multi game takes over A/D and 1-4 (debug keys otherwise).
+    if (MultiHandleKeyChar(theChar))
+        return;
+
     char c = toupper(theChar);
     if (theChar == ' ' && mDialogCount == 0)
     {
@@ -2844,6 +3482,14 @@ void Board::KeyDown(KeyCode theKey)
 {
     Widget::KeyDown(theKey);
 
+    if (IsMultiGameActive() && mGameState == GameState_Playing && mPauseCount == 0 && mDialogCount == 0)
+    {
+        if (theKey == KEYCODE_LEFT)
+            MultiStartSwitch((mMultiView + mMultiCount - 1) % mMultiCount);
+        else if (theKey == KEYCODE_RIGHT)
+            MultiStartSwitch((mMultiView + 1) % mMultiCount);
+    }
+
     // Esc opens the same MENU dialog as the Menu button.
     if (theKey == KEYCODE_ESCAPE && mDialogCount == 0)
         mApp->DoOptionsDialog();
@@ -2911,6 +3557,9 @@ void Board::ButtonDepress(int theId)
 
 static void PlayPowerSample(CircleShootApp *theApp, int theSound, double theVolume)
 {
+    if (theApp->mMuteGameSfx)
+        return;
+
     if (theVolume >= 1.0)
     {
         theApp->PlaySample(theSound);
@@ -2966,6 +3615,13 @@ void Board::WaitForLoadingThread()
 
 void Board::Reset(bool gameOver, bool isLevelReset)
 {
+    // Multi game: level setup always runs on copy 1; the others are rebuilt below.
+    MultiCancelSwitch();
+    if (mMultiLoaded != 0)
+        MultiExchange(0);
+    mMultiView = 0;
+    mStoppedAdding = false;
+
     mStateCount = 0;
     bool aSave = false;
     gBallBlink = 0;
@@ -3117,6 +3773,9 @@ void Board::Reset(bool gameOver, bool isLevelReset)
     mFlashCount = 0;
     mLevelEndFrame = 0;
     mIsWinning = false;
+
+    MultiRebuildExtras();
+
     mGameState = GameState_LevelBegin;
 
     mSpriteMgr->ClearHoleFlashes();
@@ -3457,6 +4116,8 @@ void Board::LoadGame(Buffer &theBuffer)
 
             if (mIsWinning && mLevelDesc->mStage < 13)
                 Reset(false);
+            else if (!mIsWinning && mApp->mMultiGameMode && mApp->mMultiGameCount > 1)
+                Reset(false, true); // copies aren't saved: restart this level (score/lives kept)
 
             if (isStatsDialogOpen)
             {

@@ -86,6 +86,10 @@ namespace ModesCatalog
         "If the chain splits, leftover balls toward the hole keep rolling instead of waiting for the rest of the train. Suck-back and the usual slowdown near the end are unchanged.";
     const char *const kMissileStrikeDescription =
         "Adds a missile strike button under your lives. Click it to aim (the game keeps running), then click anywhere to fire the ball in the frog's mouth as a bomb, straight at that spot. It explodes on the first chain ball it touches with 1.3x the blast of a regular bomb. Right-click backs out for free. After each strike the button recharges for 15 seconds.";
+    const char *const kMultiGameDescription =
+        "Play 1 to 4 copies of the same level at once. Score and level progress are shared; each copy has its own chain, frog and power-ups. "
+        "Switch copies with A/D or Left/Right, or jump with 1-4. A warning triangle at the top right shows which other copy has a chain near the hole. "
+        "Losing in any copy costs a life and restarts them all; finishing the level in any copy completes it. Can't be combined with Level swap or Multi-frog.";
     const char *const kLevelSwapDescription =
         "Every few seconds the screen fades to black, then the board changes to a random level as it fades back in. Your chain, gaps, power-ups, score, and level number stay. The path, background, and frog change, and a coin on screen moves to the nearest spot it could appear on the new level. Play continues through the fade. Clearing the level still advances to the next one as usual.";
 
@@ -138,6 +142,7 @@ namespace ModesCatalog
         {Mode_ShootSpeed, Group_GameMechanics, "Shoot speed", kShootSpeedDescription, true},
         {Mode_NonStop, Group_GameMechanics, "Non-stop", kNonStopDescription, false},
         {Mode_LevelSwap, Group_Challenges, "Level swap", kLevelSwapDescription, true},
+        {Mode_MultiGame, Group_Challenges, "Multi game", kMultiGameDescription, true},
         {Mode_MissileStrike, Group_EasyPeasy, "Missile strike", kMissileStrikeDescription, false},
     };
     static const int kModeCount = sizeof(kModes) / sizeof(kModes[0]);
@@ -320,6 +325,7 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
     mNonStopCheckbox = mModeSlots[ModesCatalog::Mode_NonStop].mCheckbox;
     mLevelSwapCheckbox = mModeSlots[ModesCatalog::Mode_LevelSwap].mCheckbox;
     mMissileStrikeCheckbox = mModeSlots[ModesCatalog::Mode_MissileStrike].mCheckbox;
+    mMultiGameCheckbox = mModeSlots[ModesCatalog::Mode_MultiGame].mCheckbox;
 
     CircleShootApp *app = GetCircleShootApp();
     if (mColorsBanCheckbox != NULL)
@@ -362,6 +368,8 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
         mLevelSwapCheckbox->mChecked = app->mLevelSwapMode;
     if (mMissileStrikeCheckbox != NULL)
         mMissileStrikeCheckbox->mChecked = app->mMissileStrikeMode;
+    if (mMultiGameCheckbox != NULL)
+        mMultiGameCheckbox->mChecked = app->mMultiGameMode;
 
     for (int i = 0; i < MAX_BALL_COLORS; i++)
         mPendingBannedColors[i] = app->mBannedColors[i];
@@ -411,6 +419,9 @@ ModesDialog::ModesDialog() : CircleDialog(Sexy::IMAGE_DIALOG_BACK, Sexy::IMAGE_D
     if (mPendingShootSpeedMultiplier < 0.1f || mPendingShootSpeedMultiplier > 5.0f)
         mPendingShootSpeedMultiplier = 1.0f;
     mPendingShootSpeedInstant = app->mShootSpeedInstant || app->mLightSpeedMode;
+    mPendingMultiGameCount = app->mMultiGameCount;
+    if (mPendingMultiGameCount < 1 || mPendingMultiGameCount > 4)
+        mPendingMultiGameCount = 2;
     mPendingMultiFrogCount = app->mMultiFrogCount;
     if (mPendingMultiFrogCount < 1 || mPendingMultiFrogCount > 4)
         mPendingMultiFrogCount = 2;
@@ -453,6 +464,7 @@ ModesDialog::~ModesDialog()
     mNonStopCheckbox = NULL;
     mLevelSwapCheckbox = NULL;
     mMissileStrikeCheckbox = NULL;
+    mMultiGameCheckbox = NULL;
 
     delete mModesPane;
     mModesPane = NULL;
@@ -515,6 +527,7 @@ void ModesDialog::PrepareClose()
     mNonStopCheckbox = NULL;
     mLevelSwapCheckbox = NULL;
     mMissileStrikeCheckbox = NULL;
+    mMultiGameCheckbox = NULL;
 
     delete mModesPane;
     mModesPane = NULL;
@@ -839,9 +852,26 @@ void ModesDialog::ListClicked(int theId, int theIdx, int theClickCount)
 
 void ModesDialog::CheckboxChecked(int theId, bool checked)
 {
-    (void)theId;
-    (void)checked;
+    // Mode checkboxes use the mode id as their widget id.
+    if (checked && theId >= 0 && theId < ModesCatalog::Mode_Count)
+        EnforceModeExclusion((ModesCatalog::ModeId)theId);
     MarkDirty();
+}
+
+void ModesDialog::EnforceModeExclusion(ModesCatalog::ModeId theCheckedMode)
+{
+    if (theCheckedMode == ModesCatalog::Mode_MultiGame)
+    {
+        if (mLevelSwapCheckbox != NULL)
+            mLevelSwapCheckbox->SetChecked(false, false);
+        if (mMultiFrogCheckbox != NULL)
+            mMultiFrogCheckbox->SetChecked(false, false);
+    }
+    else if (theCheckedMode == ModesCatalog::Mode_LevelSwap || theCheckedMode == ModesCatalog::Mode_MultiFrog)
+    {
+        if (mMultiGameCheckbox != NULL)
+            mMultiGameCheckbox->SetChecked(false, false);
+    }
 }
 
 void ModesDialog::OpenModePicker(ModesCatalog::ModeId theId)
@@ -873,6 +903,8 @@ void ModesDialog::OpenModePicker(ModesCatalog::ModeId theId)
         app->DoMultiFrogDialog();
     else if (def->id == ModesCatalog::Mode_LevelSwap)
         app->DoLevelSwapDialog();
+    else if (def->id == ModesCatalog::Mode_MultiGame)
+        app->DoMultiGameDialog();
 }
 
 void ModesDialog::ButtonMouseEnter(int theId)
@@ -1092,6 +1124,34 @@ bool ModesDialog::IsMissileStrikeSelected() const
     return mMissileStrikeCheckbox != NULL && mMissileStrikeCheckbox->IsChecked();
 }
 
+bool ModesDialog::IsMultiGameSelected() const
+{
+    return mMultiGameCheckbox != NULL && mMultiGameCheckbox->IsChecked();
+}
+
+int ModesDialog::GetMultiGameCount() const
+{
+    return mPendingMultiGameCount;
+}
+
+void ModesDialog::SetMultiGameCount(int theCount)
+{
+    if (theCount < 1)
+        theCount = 1;
+    if (theCount > 4)
+        theCount = 4;
+    mPendingMultiGameCount = theCount;
+}
+
+void ModesDialog::SetMultiGameSelected(bool selected)
+{
+    if (mMultiGameCheckbox != NULL)
+        mMultiGameCheckbox->SetChecked(selected, false);
+    if (selected)
+        EnforceModeExclusion(ModesCatalog::Mode_MultiGame);
+    MarkDirty();
+}
+
 int ModesDialog::GetLevelSwapIntervalSec() const
 {
     return mPendingLevelSwapIntervalSec;
@@ -1110,6 +1170,8 @@ void ModesDialog::SetLevelSwapSelected(bool selected)
 {
     if (mLevelSwapCheckbox != NULL)
         mLevelSwapCheckbox->SetChecked(selected, false);
+    if (selected)
+        EnforceModeExclusion(ModesCatalog::Mode_LevelSwap);
     MarkDirty();
 }
 
@@ -1437,6 +1499,8 @@ void ModesDialog::SetMultiFrogSelected(bool selected)
 {
     if (mMultiFrogCheckbox != NULL)
         mMultiFrogCheckbox->SetChecked(selected, false);
+    if (selected)
+        EnforceModeExclusion(ModesCatalog::Mode_MultiFrog);
     MarkDirty();
 }
 

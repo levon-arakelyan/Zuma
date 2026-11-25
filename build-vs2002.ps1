@@ -268,7 +268,11 @@ $layoutHeaders = @(
     (Join-Path $PWD "source\CircleShoot\Ball.h"),
     (Join-Path $PWD "source\CircleShoot\Bullet.h"),
     (Join-Path $PWD "source\CircleShoot\Gun.h"),
-    (Join-Path $PWD "source\CircleShoot\CurveMgr.h")
+    (Join-Path $PWD "source\CircleShoot\CurveMgr.h"),
+    (Join-Path $PWD "source\CircleShoot\SpriteMgr.h"),
+    (Join-Path $PWD "source\CircleShoot\SoundMgr.h"),
+    (Join-Path $PWD "source\CircleShoot\ParticleMgr.h"),
+    (Join-Path $PWD "source\CircleShoot\TransitionMgr.h")
 )
 $stampPath = Join-Path $PWD "build\circleshoot-layout.stamp"
 $layoutHash = ($layoutHeaders | Where-Object { Test-Path $_ } | ForEach-Object {

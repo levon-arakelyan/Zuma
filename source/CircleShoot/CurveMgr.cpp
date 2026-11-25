@@ -1622,7 +1622,7 @@ bool CurveMgr::CheckSet(Ball *theBall)
 
         mApp->PlaySample(*destroySound);
 
-        SoundInstance *aSound = mApp->mSoundManager->GetSoundInstance(Sexy::SOUND_COMBO);
+        SoundInstance *aSound = mApp->mMuteGameSfx ? NULL : mApp->mSoundManager->GetSoundInstance(Sexy::SOUND_COMBO);
         if (aSound != NULL)
         {
             aSound->AdjustPitch(2 * aComboCount);

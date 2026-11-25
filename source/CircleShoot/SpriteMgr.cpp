@@ -954,6 +954,70 @@ SpriteImage::~SpriteImage()
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
+void SpriteMgr::GetHoleState(HoleState &theState) const
+{
+    theState.mNumHoles = mNumHoles;
+    for (int i = 0; i < 3; i++)
+    {
+        const HoleInfo &aHole = mHoleInfo[i];
+        theState.mHoleMappings[i] = mHoleMappings[i];
+        theState.mx[i] = aHole.mx;
+        theState.my[i] = aHole.my;
+        theState.mFrame[i] = aHole.mFrame;
+        theState.mTotalBrightness[i] = aHole.mTotalBrightness;
+        theState.mRotation[i] = aHole.mRotation;
+        theState.mDrawPriority[i] = aHole.mDrawPriority;
+        for (int j = 0; j < 3; j++)
+        {
+            theState.mPercentOpen[i][j] = aHole.mPercentOpen[j];
+            theState.mBrightness[i][j] = aHole.mBrightness[j];
+        }
+    }
+
+    theState.mFlashUpdateCount.clear();
+    theState.mFlashCurveNum.clear();
+    for (HoleFlashList::const_iterator anItr = mHoleFlashList.begin(); anItr != mHoleFlashList.end(); ++anItr)
+    {
+        theState.mFlashUpdateCount.push_back(anItr->mUpdateCount);
+        theState.mFlashCurveNum.push_back(anItr->mCurveNum);
+    }
+}
+
+void SpriteMgr::SetHoleState(const HoleState &theState)
+{
+    if (theState.mNumHoles < 0)
+        return; // never captured
+
+    mNumHoles = theState.mNumHoles;
+    for (int i = 0; i < 3; i++)
+    {
+        HoleInfo &aHole = mHoleInfo[i];
+        mHoleMappings[i] = theState.mHoleMappings[i];
+        aHole.mx = theState.mx[i];
+        aHole.my = theState.my[i];
+        aHole.mFrame = theState.mFrame[i];
+        aHole.mTotalBrightness = theState.mTotalBrightness[i];
+        aHole.mRotation = theState.mRotation[i];
+        aHole.mDrawPriority = theState.mDrawPriority[i];
+        for (int j = 0; j < 3; j++)
+        {
+            aHole.mPercentOpen[j] = theState.mPercentOpen[i][j];
+            aHole.mBrightness[j] = theState.mBrightness[i][j];
+        }
+    }
+
+    mHoleFlashList.clear();
+    std::list<int>::const_iterator aCount = theState.mFlashUpdateCount.begin();
+    std::list<int>::const_iterator aCurve = theState.mFlashCurveNum.begin();
+    for (; aCount != theState.mFlashUpdateCount.end() && aCurve != theState.mFlashCurveNum.end(); ++aCount, ++aCurve)
+    {
+        HoleFlash aFlash;
+        aFlash.mUpdateCount = *aCount;
+        aFlash.mCurveNum = *aCurve;
+        mHoleFlashList.push_back(aFlash);
+    }
+}
+
 SpriteMgr::HoleInfo::~HoleInfo()
 {
     delete mImage;

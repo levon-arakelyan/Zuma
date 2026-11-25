@@ -180,6 +180,7 @@ namespace Sexy
 		void AddPowerUp(PowerType thePower);
 		void ApplyColorShift(const int theMap[MAX_BALL_COLORS]);
 		int GetNumColors(); // colors this path's balls are drawn from (0..n-1)
+		CurveDesc *GetCurveDesc() { return mCurveDesc; } // this path's own level data
 		void ApplyInvisible(int theFrames, int thePercent);
 		Bullet *LaunchKillerBall(float theFlightSec, float theFrogX, float theFrogY);
 

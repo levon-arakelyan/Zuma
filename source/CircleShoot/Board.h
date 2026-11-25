@@ -6,6 +6,7 @@
 #include <SexyAppFramework/SexyVector.h>
 #include "LevelParser.h"
 #include "CurveMgr.h"
+#include "SpriteMgr.h"
 
 #include <list>
 #include <vector>
@@ -196,6 +197,79 @@ namespace Sexy
 		Bullet *mMissileStrikeArmedBullet;
 		PowerType mMissileStrikeArmedOldPower;
 		int mStrikeShakeTicks; // board shake after a strike hits, counts down
+
+		// ---- Multi game: several copies of the level played at once ----
+		// The Board's own fields always hold one copy (the "loaded" one); the
+		// others wait in mMulti[] and are swapped in to be updated. Outside of
+		// MultiUpdatePlaying the loaded copy is the one on screen (mMultiView).
+		struct MultiInstance
+		{
+			CurveMgr *mCurveMgr[MAX_CURVES];
+			LevelDesc *mOwnLevelDesc; // extra copies: own level data (paths change it)
+			Gun *mGun;
+			ParticleMgr *mParticleMgr;
+			SoundMgr *mSoundMgr;
+			BulletList mBulletList;
+			ColorMap mBallColorMap;
+			BallList mNeedComboCount;
+			SpriteMgr::HoleState mHoles;
+			TreasurePoint *mCurTreasure;
+			int mCurTreasureNum;
+			int mTreasureEndFrame;
+			int mTreasureZoomX;
+			int mTreasureZoomY;
+			int mTreasureZoomFrame;
+			IntPoint mGuide[4];
+			SexyVector3 mGuideCenter;
+			Ball *mGuideBall;
+			bool mShowGuide;
+			bool mDoGuide;
+			bool mRecalcGuide;
+			int mAccuracyCount;
+			int mNumCleared;
+			int mClearedXSum;
+			int mClearedYSum;
+			int mCurComboCount;
+			int mCurComboScore;
+			int mNumClearsInARow;
+			int mCurInARowBonus;
+			bool mLevelBeginning;
+			int mLevelEndFrame;
+			int mKillerBallCooldown;
+			bool mKillerHitFrog;
+			bool mStoppedAdding;
+			MultiInstance();
+		};
+		enum { MAX_MULTI_GAMES = 4 };
+		MultiInstance mMulti[MAX_MULTI_GAMES];
+		LevelDesc *mMultiOwnLevelDesc; // loaded copy's own level data (NULL for copy 1)
+		bool mStoppedAdding;           // loaded copy: target-reached stop already applied
+		int mMultiCount;               // copies in play (1 = mode off)
+		int mMultiLoaded;              // copy whose state is in the Board's fields
+		int mMultiView;                // copy on screen
+		int mMultiSwitchTicks;         // > 0 while fading to another copy
+		int mMultiSwitchTarget;
+		bool mMultiBackground;         // updating a copy that is not on screen
+		int mMultiEndRequest;          // copy whose loss/win fired in the background (-1 none)
+		bool mMultiDanger[MAX_MULTI_GAMES];
+
+		bool IsMultiGameActive() const { return mMultiCount > 1; }
+		void MultiSwapLoaded(MultiInstance &theSlot);
+		void MultiExchange(int theIndex);
+		void MultiDestroyExtras();
+		void MultiRebuildExtras();
+		void MultiStartLevelCopies();
+		void MultiUpdatePlaying();
+		bool MultiLoadedInDanger();
+		void MultiCheckBackgroundEnd();
+		void MultiSetView(int theIndex);
+		void MultiStartSwitch(int theIndex);
+		void MultiUpdateSwitch();
+		void MultiApplyVolume(double theFactor);
+		void MultiCancelSwitch();
+		bool MultiHandleKeyChar(char theChar);
+		void DrawMultiGameHud(Graphics *g);
+		void DrawMultiSwitchFade(Graphics *g);
 
 		static void StaticLoadProc(void *theData);
 		void LoadProc();

@@ -88,6 +88,7 @@ namespace Sexy
         DialogType_ShootSpeed = 35,
         DialogType_MultiFrog = 36,
         DialogType_LevelSwap = 37,
+        DialogType_MultiGame = 38,
         DialogType_Max,
     };
 

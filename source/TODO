@@ -1,0 +1,4 @@
+Multi Game
+1. Add compatibility with Multi-frog mode: each isntance should have defined number of frogs
+2. Add compatibilty with Level Swap mode: each instance should swap in every defined number of seconds to random level, not same
+3. After leaving to main menu and continuing game with mode enabled, player should continue from the lase instance he was, and all chains should be restored.

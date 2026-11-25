@@ -54,6 +54,7 @@ protected:
 	SoundMap mSoundMap;
 
 	LoopingSound mLoopingSounds[LoopType_Max];
+	bool mSilent; // Multi game: background copies drop all their sounds
 	void PlaySample(const SoundDesc &theDesc);
 
 
@@ -70,6 +71,10 @@ public:
 	void KillAllSounds();
 
 	void AddSound(int theSound, int theDelay = 0, int thePan = 0, float thePitchShift = 0);
+
+	// Silent: loops muted, new and queued sounds dropped (Multi game background copy).
+	void SetSilent(bool silent);
+	bool IsSilent() const { return mSilent; }
 };
 
 

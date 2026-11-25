@@ -20,6 +20,7 @@ SoundMgr::SoundMgr()
     }
 
     mUpdateCnt = 0;
+    mSilent = false;
     mLoopingSounds[LoopType_RollIn].mSound = gSexyAppBase->mSoundManager->GetSoundInstance(Sexy::SOUND_ROLLING);
     mLoopingSounds[LoopType_RollOut].mSound = gSexyAppBase->mSoundManager->GetSoundInstance(Sexy::SOUND_ROLLING);
 }
@@ -30,6 +31,9 @@ SoundMgr::~SoundMgr()
 
 void SoundMgr::PlaySample(const SoundDesc &theDesc)
 {
+    if (mSilent)
+        return;
+
     SoundInstance *aSound = gSexyAppBase->mSoundManager->GetSoundInstance(theDesc.mSoundId);
 
     if (!aSound)
@@ -50,6 +54,19 @@ void SoundMgr::PlaySample(const SoundDesc &theDesc)
 
 void SoundMgr::Clear() {}
 
+void SoundMgr::SetSilent(bool silent)
+{
+    mSilent = silent;
+    if (silent)
+    {
+        // A silent manager isn't updated (Multi game background copy), so a
+        // loop would never get to fade out: stop loops outright instead.
+        for (int i = 0; i < LoopType_Max; i++)
+            mLoopingSounds[i].Stop();
+        mSoundMap.clear();
+    }
+}
+
 void SoundMgr::Mute(bool mute)
 {
     for (int i = 0; i < LoopType_Max; i++)
@@ -60,6 +77,9 @@ void SoundMgr::Mute(bool mute)
 
 void SoundMgr::PlayLoop(LoopType theSound)
 {
+    if (mSilent)
+        return;
+
     mLoopingSounds[(int)theSound].Play();
 }
 
@@ -90,6 +110,9 @@ void SoundMgr::AddSound(int theSound, int theDelay, int thePan, float thePitchSh
     aDesc.mSoundId = theSound;
     aDesc.mPitchShift = thePitchShift;
     aDesc.mPan = thePan;
+
+    if (mSilent)
+        return;
 
     if (theDelay == 0)
     {
@@ -176,6 +199,12 @@ void LoopingSound::Play()
 
 void LoopingSound::Stop()
 {
+    if (mSound == NULL || !mPlaying)
+        return;
+
+    mPlaying = false;
+    mVolume = 0.0f;
+    mSound->Stop();
 }
 
 void LoopingSound::Mute(bool mute)
